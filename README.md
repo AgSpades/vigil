@@ -38,18 +38,18 @@ ACTIVATION  (LLM agent)
 
 ## Tech stack
 
-| Layer | Choice |
-|---|---|
-| Framework | Next.js 16 (App Router) |
-| Auth | `@auth0/nextjs-auth0` v4 — OIDC, Token Vault, CIBA |
-| Agent runtime | Vercel AI SDK v6 (`ai`, `@ai-sdk/react`) |
-| Agent auth | `@auth0/ai-vercel` v5 — `withTokenVault`, `withAsyncAuthorization` |
-| LLM | `moonshotai/kimi-k2-instruct` via Groq |
-| LLM provider | `@ai-sdk/groq` |
-| Database | PostgreSQL via Prisma 7 (`@prisma/adapter-pg`) |
-| Scheduler | Vercel Cron Jobs (hourly) |
-| Styling | Tailwind CSS v4 |
-| Deployment | Vercel |
+| Layer         | Choice                                                             |
+| ------------- | ------------------------------------------------------------------ |
+| Framework     | Next.js 16 (App Router)                                            |
+| Auth          | `@auth0/nextjs-auth0` v4 — OIDC, Token Vault, CIBA                 |
+| Agent runtime | Vercel AI SDK v6 (`ai`, `@ai-sdk/react`)                           |
+| Agent auth    | `@auth0/ai-vercel` v5 — `withTokenVault`, `withAsyncAuthorization` |
+| LLM           | `moonshotai/kimi-k2-instruct` via Groq                             |
+| LLM provider  | `@ai-sdk/groq`                                                     |
+| Database      | PostgreSQL via Prisma 7 (`@prisma/adapter-pg`)                     |
+| Scheduler     | Vercel Cron Jobs (hourly)                                          |
+| Styling       | Tailwind CSS v4                                                    |
+| Deployment    | Vercel                                                             |
 
 ---
 
@@ -98,7 +98,7 @@ vigil/
 ├── prisma.config.ts                   # Prisma 7 datasource config
 ├── proxy.ts                           # Next.js 16 Auth0 middleware
 ├── vercel.json                        # Hourly cron schedule
-└── .env.local.example
+└── .env.example
 ```
 
 ---
@@ -114,7 +114,7 @@ pnpm install
 ### 2. Configure environment
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
 Fill in `.env.local`:
