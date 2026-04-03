@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String          @id // Auth0 sub
+  email         String
+  createdAt     DateTime        @default(now())
+  config        VigilConfig?
+  heartbeats    Heartbeat[]
+  stagedActions StagedAction[]
+  contacts      ContactContext[]
+  auditLogs     AuditLog[]
+}
+
+model Heartbeat {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  checkedInAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, checkedInAt(sort: Desc)])
+}
+
+model VigilConfig {
+  userId      String    @id
+  silenceDays Int       @default(7)
+  graceHours  Int       @default(24)
+  cibaSentAt  DateTime?
+  activatedAt DateTime?
+  cancelledAt DateTime?
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+// One row per staged action, written by the setup chat agent
+model StagedAction {
+  id           Int       @id @default(autoincrement())
+  userId       String
+  triggerDays  Int // silence duration that triggers this
+  actionType   String // 'gmail_send' | 'drive_archive' | 'github_transfer' | 'webhook'
+  actionConfig Json // structured config extracted by LLM
+  executedAt   DateTime?
+  status       String    @default("pending") // 'pending' | 'executed' | 'failed' | 'cancelled'
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+}
+
+// Per-contact relationship context — used by LLM to draft messages
+model ContactContext {
+  id           Int    @id @default(autoincrement())
+  userId       String
+  contactName  String
+  contactEmail String?
+  relationship String // free text: "sister", "mentor", "colleague"
+  context      String // user's own words about this person
+  user         User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// Immutable audit trail
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  eventType  String // 'heartbeat' | 'ciba_sent' | 'ciba_approved' | 'ciba_denied'
+  // | 'action_executed' | 'action_failed' | 'agent_cancelled' | 'setup_confirmed'
+  detail     Json?
+  occurredAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, occurredAt(sort: Desc)])
+}
