@@ -1,142 +1,256 @@
-import { redirect } from "next/navigation";
-import { auth0 } from "@/lib/auth0";
-import { getVigilConfig, upsertUser, ensureVigilConfig } from "@/lib/db/users";
-import { getLastHeartbeat } from "@/lib/db/heartbeats";
-import { getStagedActions } from "@/lib/db/staged-actions";
-import { HeartbeatButton } from "@/components/HeartbeatButton";
-import { AuditLog } from "@/components/AuditLog";
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/Button";
 import Link from "next/link";
+import { Card } from "@/components/Card";
 
-function getStatusLabel(config: {
-  activatedAt: Date | null;
-  cancelledAt: Date | null;
-  cibaSentAt: Date | null;
-} | null): { label: string; color: string; dot: string } {
-  if (!config) return { label: "NOT SET UP", color: "text-zinc-500", dot: "bg-zinc-500" };
-  if (config.activatedAt) return { label: "ACTIVATED", color: "text-rose-400", dot: "bg-rose-400" };
-  if (config.cancelledAt) return { label: "STANDING DOWN", color: "text-zinc-400", dot: "bg-zinc-400" };
-  if (config.cibaSentAt) return { label: "ALERT SENT", color: "text-amber-400 animate-pulse", dot: "bg-amber-400 animate-ping" };
-  return { label: "WATCHING", color: "text-emerald-400", dot: "bg-emerald-400 animate-pulse" };
-}
+type StatusType = "watching" | "alert" | "down";
 
-export default async function DashboardPage() {
-  const session = await auth0.getSession();
-  if (!session) redirect("/auth/login");
+export default function DashboardPage() {
+  const [status, setStatus] = useState<StatusType>("watching");
+  const [checkedIn, setCheckedIn] = useState(false);
 
-  const userId = session.user.sub;
-  const email = session.user.email ?? "";
+  const handleCheckIn = () => {
+    setCheckedIn(true);
+    // Visual feedback simulate
+    setTimeout(() => setCheckedIn(false), 2000);
+  };
 
-  await upsertUser(userId, email);
-  await ensureVigilConfig(userId);
+  const statusMap = {
+    watching: {
+      text: "Vigil is watching.",
+      pillText: "WATCHING",
+      pillClass:
+        "bg-vigil-statusWatchBg text-vigil-statusWatch border border-vigil-statusWatchBorder",
+      dotClass: "bg-vigil-statusWatch animate-pulseWatch",
+    },
+    alert: {
+      text: "Vigil has sent a confirmation.",
+      pillText: "ALERT SENT",
+      pillClass:
+        "bg-vigil-statusAlertBg text-vigil-statusAlert border border-vigil-statusAlertBorder",
+      dotClass: "bg-vigil-statusAlert animate-pulseAlert",
+    },
+    down: {
+      text: "Vigil has stood down.",
+      pillText: "STANDING DOWN",
+      pillClass:
+        "bg-vigil-statusDownBg text-vigil-statusDown border border-vigil-statusDownBorder",
+      dotClass: "bg-vigil-statusDown",
+    },
+  };
 
-  const [config, lastBeat, actions] = await Promise.all([
-    getVigilConfig(userId),
-    getLastHeartbeat(userId),
-    getStagedActions(userId),
-  ]);
+  const mockInstructions = [
+    { id: "1", delay: "AFTER 7 DAYS", text: "Email Anna with the estate document links and access codes.", status: "PENDING" },
+    { id: "2", delay: "AFTER 8 DAYS", text: "Transfer GitHub ownership of @startup org to co-founder.", status: "PENDING" }
+  ];
 
-  const status = getStatusLabel(config);
-  const silenceDays = config?.silenceDays ?? 7;
-  const lastBeatMs = lastBeat.getTime();
-  const now = Date.now();
-  const hoursSince =
-    lastBeatMs === 0 ? null : Math.floor((now - lastBeatMs) / 3_600_000);
+  const mockServices = [
+    { id: "1", name: "Gmail", status: "CONNECTED" },
+    { id: "2", name: "GitHub", status: "CONNECTED" }
+  ];
 
-  const pendingActions = actions.filter((a) => a.status === "pending");
+  const mockAuditLogs = [
+    { id: "1", type: "watch", text: "User check-in received", time: "14 Apr 2026, 09:41" },
+    { id: "2", type: "accent", text: "Setup instructions confirmed", time: "13 Apr 2026, 12:30" },
+    { id: "3", type: "watch", text: "Account connected: GitHub", time: "13 Apr 2026, 12:20" }
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Nav */}
-      <nav className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
-        <span className="font-bold text-zinc-100 tracking-tight">Vigil</span>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard/setup"
-            className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-          >
-            Setup
-          </Link>
-          <Link
-            href="/dashboard/connect"
-            className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-          >
-            Connect
-          </Link>
-          <a
-            href="/auth/logout"
-            className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            Sign out
-          </a>
-        </div>
-      </nav>
+    <main className="min-h-[calc(100vh-72px)] bg-vigil-bgPri p-6 md:p-12 text-vigil-textPri flex justify-center fade-up relative pb-[120px]">
+      {/* Dev toggle, purely to preview states as requested */}
+      <div className="fixed bottom-4 right-4 flex gap-2 z-50 bg-vigil-bgSec p-2 rounded border border-vigil-borderSubtle">
+        <button
+          onClick={() => setStatus("watching")}
+          className="text-[10px] uppercase text-vigil-textSec hover:text-white"
+        >
+          Watch
+        </button>
+        <button
+          onClick={() => setStatus("alert")}
+          className="text-[10px] uppercase text-vigil-textSec hover:text-white"
+        >
+          Alert
+        </button>
+        <button
+          onClick={() => setStatus("down")}
+          className="text-[10px] uppercase text-vigil-textSec hover:text-white"
+        >
+          Down
+        </button>
+      </div>
 
-      <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-12 space-y-12">
-        {/* Status */}
-        <section className="text-center space-y-4">
-          <div className="flex items-center justify-center gap-3">
-            <span className={`inline-block w-3 h-3 rounded-full ${status.dot}`} />
-            <span className={`text-2xl font-bold tracking-widest ${status.color}`}>
-              {status.label}
+      <div className="w-full max-w-[800px] flex flex-col gap-[80px]">
+        {/* Status Hero */}
+        <section className="flex flex-col gap-6 items-start">
+          <div
+            className={`px-3 py-1 flex items-center gap-2 rounded-[2px] transition-colors duration-500 delay-100 ${statusMap[status].pillClass}`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full ${statusMap[status].dotClass}`}
+            />
+            <span className="text-[11px] font-sans uppercase tracking-[0.14em]">
+              {statusMap[status].pillText}
             </span>
           </div>
-          <p className="text-zinc-500 text-sm">
-            {hoursSince === null
-              ? "No check-ins recorded yet"
-              : hoursSince === 0
-                ? "Last check-in: less than an hour ago"
-                : `Last check-in: ${hoursSince} hour${hoursSince === 1 ? "" : "s"} ago`}
-            {config && ` · Threshold: ${silenceDays} days`}
+
+          <h1 className="font-serif text-[40px] md:text-[56px] font-light leading-[1.1] min-h-[60px] transition-opacity duration-300">
+            {statusMap[status].text}
+          </h1>
+
+          <p className="text-vigil-textSec font-mono text-[13px] mb-4">
+            Last seen — 14 Apr 2026, 09:41 IST
           </p>
-          <div className="flex justify-center pt-2">
-            <HeartbeatButton />
+
+          <Button
+            variant="primary"
+            className="w-full md:w-[280px]"
+            onClick={handleCheckIn}
+            disabled={checkedIn}
+          >
+            {checkedIn ? "✓ Noted." : "I'm here"}
+          </Button>
+        </section>
+
+        {/* Active Instructions */}
+        <section className="flex flex-col gap-6 fade-up delay-100">
+          <div className="flex flex-col gap-3">
+            <h2 className="text-[12px] font-sans uppercase tracking-[0.12em] text-vigil-textSec">
+              YOUR INSTRUCTIONS
+            </h2>
+            <div className="w-[40px] h-[1px] bg-vigil-accentPri"></div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {mockInstructions.length > 0 ? (
+              mockInstructions.map((inst, i) => (
+                <Card
+                  key={i}
+                  padding="md"
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                >
+                  <span className="text-[13px] uppercase tracking-[0.1em] text-vigil-textSec w-32 shrink-0">
+                    {inst.delay}
+                  </span>
+                  <span className="text-[14px] text-vigil-textPri font-light flex-grow break-words min-w-0">
+                    {inst.text}
+                  </span>
+                  <span className="px-2 py-1 bg-vigil-bgTer border border-vigil-borderSubtle text-[11px] text-vigil-textSec rounded-[2px] shrink-0">
+                    {inst.status}
+                  </span>
+                </Card>
+              ))
+            ) : (
+              <Card padding="md" variant="dashed" className="flex items-center justify-center py-8">
+                <span className="text-[13px] text-vigil-textSec">No active instructions set.</span>
+              </Card>
+            )}
+          </div>
+
+          <div className="flex">
+            <Link href="/onboarding/setup" className="py-2 pr-4 -my-2 flex">
+              <span className="text-[12px] uppercase text-vigil-textSec hover:text-vigil-accentPri border-b border-transparent hover:border-vigil-accentPri transition-colors pb-1">
+                Edit instructions
+              </span>
+            </Link>
           </div>
         </section>
 
-        {/* Configured actions */}
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
-            Configured Actions
-          </h2>
-          {pendingActions.length === 0 ? (
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900 text-sm text-zinc-500 text-center">
-              No actions configured yet.{" "}
-              <Link href="/dashboard/setup" className="text-zinc-300 underline">
-                Set up Vigil
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pendingActions.map((action) => (
-                <div
-                  key={action.id}
-                  className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900"
+        {/* Connected Accounts */}
+        <section className="flex flex-col gap-6 fade-up delay-200">
+          <div className="flex flex-col gap-3">
+            <h2 className="text-[12px] font-sans uppercase tracking-[0.12em] text-vigil-textSec">
+              CONNECTED SERVICES
+            </h2>
+            <div className="w-[40px] h-[1px] bg-vigil-accentPri"></div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4">
+            {mockServices.length > 0 ? (
+              mockServices.map((svc, i) => (
+                <Card
+                  key={i}
+                  padding="sm"
+                  className="w-full sm:w-[220px] flex-shrink-0 relative overflow-hidden group hover:border-vigil-statusWatch transition-colors"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-zinc-200 capitalize">
-                      {action.actionType.replace(/_/g, " ")}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      After {action.triggerDays} days of silence
-                    </p>
+                  <div className="absolute -top-4 -right-4 w-16 h-16 bg-vigil-statusWatch/10 blur-xl rounded-full group-hover:bg-vigil-statusWatch/20 transition-all duration-500"></div>
+                  <div className="flex flex-col gap-4 z-10 relative">
+                    <span className="text-[14px] font-medium text-vigil-textPri break-words min-w-0">
+                      {svc.name}
+                    </span>
+                    <span className="text-[11px] uppercase tracking-wider text-vigil-statusWatch font-medium flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-vigil-statusWatch animate-pulseWatch"></span>{" "}
+                      {svc.status}
+                    </span>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full border border-zinc-700 text-zinc-400">
-                    {action.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+                </Card>
+              ))
+            ) : (
+              <Card padding="sm" variant="dashed" className="w-[220px] flex items-center justify-center py-6">
+                <span className="text-[12px] text-vigil-textSec">No services connected.</span>
+              </Card>
+            )}
+
+            <Card
+              padding="sm"
+              variant="dashed"
+              interactive
+              className="flex-grow min-w-full sm:min-w-[200px] flex items-center justify-center min-h-[90px]"
+            >
+              <span className="text-[12px] uppercase tracking-[0.1em]">
+                + ADD SERVICE
+              </span>
+            </Card>
+          </div>
+
+          <div className="flex">
+            <Link href="/dashboard/settings" className="py-2 pr-4 -my-2 flex">
+              <span className="text-[12px] uppercase text-vigil-textSec hover:text-vigil-accentPri border-b border-transparent hover:border-vigil-accentPri transition-colors pb-1">
+                Manage settings
+              </span>
+            </Link>
+          </div>
         </section>
 
-        {/* Audit log */}
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
-            Audit Log
-          </h2>
-          <AuditLog />
+        {/* Audit Log */}
+        <section className="flex flex-col gap-6 fade-up delay-300">
+          <div className="flex flex-col gap-3">
+            <h2 className="text-[12px] font-sans uppercase tracking-[0.12em] text-vigil-textSec">
+              AUDIT LOG
+            </h2>
+            <div className="w-[40px] h-[1px] bg-vigil-accentPri"></div>
+          </div>
+
+          <div className="flex flex-col border-t border-vigil-borderSubtle">
+            {mockAuditLogs.length > 0 ? (
+              mockAuditLogs.map((log, i) => (
+                <div key={i} className="py-4 border-b border-vigil-borderSubtle flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${log.type === "accent" ? "bg-vigil-accentPri" : "bg-vigil-statusWatch"}`}></div>
+                    <span className="text-[13px] text-vigil-textPri break-words min-w-0">
+                      {log.text}
+                    </span>
+                  </div>
+                  <span className="text-[12px] font-mono text-vigil-textTer shrink-0">
+                    {log.time}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 flex justify-center border-b border-vigil-borderSubtle">
+                <span className="text-[13px] text-vigil-textTer">No recent activity.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="w-full flex justify-center mt-4">
+            <Button variant="secondary" className="w-full">
+              Load more history
+            </Button>
+          </div>
         </section>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

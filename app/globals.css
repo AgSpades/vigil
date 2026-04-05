@@ -1,26 +1,75 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --color-vigil-bgPri: #0A0806;
+  --color-vigil-bgSec: #110E0A;
+  --color-vigil-bgTer: #1A1410;
+  
+  --color-vigil-accentPri: #C4622D;
+  --color-vigil-accentSec: #E8835A;
+  --color-vigil-accentGold: #D4A84B;
+  
+  --color-vigil-textPri: #F2EDE6;
+  --color-vigil-textSec: #8C8278;
+  --color-vigil-textTer: #797066;
+  
+  --color-vigil-borderSubtle: #2A2420;
+  --color-vigil-borderActive: #C4622D;
+  
+  --color-vigil-statusWatch: #4A7C59;
+  --color-vigil-statusWatchBg: #0D1F14;
+  --color-vigil-statusWatchBorder: #1E3D28;
+  
+  --color-vigil-statusAlert: #C4622D;
+  --color-vigil-statusAlertBg: #1F100A;
+  --color-vigil-statusAlertBorder: #3D2010;
+  
+  --color-vigil-statusDown: #8C2D2D;
+  --color-vigil-statusDownBg: #1A0A0A;
+  --color-vigil-statusDownBorder: #3D1010;
+
+  --animate-fadeUp: fadeUp 0.4s ease forwards;
+  --animate-pulseWatch: pulseWatch 2s ease-out infinite;
+  --animate-pulseAlert: pulseWatch 1.2s ease-out infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseWatch {
+  0%   { transform: scale(1);   opacity: 1; }
+  60%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1);   opacity: 0; }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-vigil-bgPri);
+  color: var(--color-vigil-textPri);
+  font-family: var(--font-sans);
+}
+
+.fade-up {
+  opacity: 0;
+  animation: var(--animate-fadeUp);
+}
+.fade-up.delay-100 { animation-delay: 0.1s; }
+.fade-up.delay-200 { animation-delay: 0.2s; }
+.fade-up.delay-300 { animation-delay: 0.3s; }
+
+@layer base {
+  a:focus-visible, 
+  button:focus-visible, 
+  input:focus-visible, 
+  textarea:focus-visible, 
+  select:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--color-vigil-accentPri);
+    outline-offset: 2px;
+  }
 }
