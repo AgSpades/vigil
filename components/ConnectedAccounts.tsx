@@ -35,7 +35,7 @@ export function ConnectedAccounts({
 }) {
   function handleConnect(connectionName: string) {
     // Redirect to Auth0 connection flow
-    window.location.href = `/auth/login?connection=${connectionName}&returnTo=/dashboard/connect`;
+    window.location.assign(`/auth/login?connection=${connectionName}&returnTo=/dashboard/connect`);
   }
 
   return (
