@@ -1,3 +1,9 @@
+import { auth0 } from "../auth0";
+import {
+  getConnectedServicesFromAccounts,
+  getConnectedServicesFromSession,
+} from "../auth0-connected-accounts";
+import { fetchConnectedAccounts } from "../auth0-my-account";
 import { prisma } from "./prisma";
 
 export async function upsertUser(id: string, email: string) {
@@ -17,6 +23,19 @@ export async function ensureVigilConfig(userId: string) {
     where: { userId },
     create: { userId },
     update: {},
+  });
+}
+
+export async function updateVigilConfig(
+  userId: string,
+  data: {
+    silenceDays: number;
+    graceHours: number;
+  },
+) {
+  return prisma.vigilConfig.update({
+    where: { userId },
+    data,
   });
 }
 
@@ -53,10 +72,25 @@ export async function getAllActiveUsers() {
   });
 }
 
-export async function getConnectedServices(
-  _userId: string,
-): Promise<string[]> {
-  // TODO: query Auth0 Management API or Token Vault to get actually connected services
-  // For now return empty list until Token Vault integration is wired
-  return [];
+export async function getConnectedServices(userId: string): Promise<string[]> {
+  void userId;
+  try {
+    const accounts = await fetchConnectedAccounts();
+    return getConnectedServicesFromAccounts(accounts);
+  } catch {
+    const session = await auth0.getSession();
+    return getConnectedServicesFromSession(session);
+  }
+}
+
+export async function hasCompletedOnboarding(userId: string): Promise<boolean> {
+  const setupConfirmation = await prisma.auditLog.findFirst({
+    where: {
+      userId,
+      eventType: "setup_confirmed",
+    },
+    select: { id: true },
+  });
+
+  return Boolean(setupConfirmation);
 }

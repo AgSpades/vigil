@@ -24,21 +24,15 @@ export function HeartbeatButton() {
     <button
       onClick={handleCheckIn}
       disabled={status === "loading"}
-      className="
-        w-full max-w-xs py-4 px-8 rounded-2xl text-lg font-semibold
-        transition-all duration-200
-        bg-emerald-600 hover:bg-emerald-500 active:scale-95
-        text-white shadow-lg shadow-emerald-900/30
-        disabled:opacity-60 disabled:cursor-not-allowed
-      "
+      className="w-full md:w-[280px] h-[52px] bg-vigil-accentPri hover:bg-vigil-accentSec disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center text-vigil-textPri text-[13px] font-medium uppercase tracking-[0.12em] rounded-sm transition-colors duration-200"
     >
       {status === "loading"
-        ? "Checking in…"
+        ? "Recording..."
         : status === "done"
-          ? "Checked in"
+          ? "Noted."
           : status === "error"
-            ? "Failed — try again"
-            : "Check In"}
+            ? "Try again"
+            : "I'm here"}
     </button>
   );
 }
