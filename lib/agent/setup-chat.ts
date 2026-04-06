@@ -52,15 +52,33 @@ export function createSetupChatHandler(
               "webhook",
             ]),
             actionConfig: z
-              .record(z.string(), z.unknown())
+              .object({
+                to: z.string().optional(),
+                subject: z.string().optional(),
+                body: z.string().optional(),
+                tone: z.string().optional(),
+                relationship: z.string().optional(),
+                targetEmail: z.string().optional(),
+                target_email: z.string().optional(),
+                repo: z.string().optional(),
+                newOwner: z.string().optional(),
+                new_owner: z.string().optional(),
+                url: z.string().optional(),
+              })
+              .passthrough()
               .describe("Structured config for this action type"),
           }),
           execute: async ({ triggerDays, actionType, actionConfig }) => {
+            const normalizedActionConfig =
+              actionConfig && typeof actionConfig === "object"
+                ? (actionConfig as Record<string, unknown>)
+                : {};
+
             await saveStagedAction({
               userId,
               triggerDays,
               actionType,
-              actionConfig: actionConfig as Record<string, unknown>,
+              actionConfig: normalizedActionConfig,
             });
             return { saved: true };
           },
@@ -73,14 +91,10 @@ export function createSetupChatHandler(
           inputSchema: z.object({
             contactName: z.string(),
             contactEmail: z.string().optional(),
-            relationship: z
-              .string()
-              .describe("e.g. sister, mentor, colleague"),
+            relationship: z.string().describe("e.g. sister, mentor, colleague"),
             context: z
               .string()
-              .describe(
-                "User's own words about this person and what to say",
-              ),
+              .describe("User's own words about this person and what to say"),
           }),
           execute: async ({
             contactName,

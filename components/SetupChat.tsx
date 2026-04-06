@@ -53,11 +53,58 @@ export function SetupChat({
     ),
   );
 
+  const hasSavedAction = messages.some((message) =>
+    message.parts?.some(
+      (part) =>
+        part.type === "tool-saveAction" &&
+        "state" in part &&
+        part.state === "output-available",
+    ),
+  );
+
   useEffect(() => {
     if (setupConfirmed) {
       const t = setTimeout(() => router.push("/dashboard"), 1500);
       return () => clearTimeout(t);
     }
+  }, [setupConfirmed, router]);
+
+  useEffect(() => {
+    if (setupConfirmed) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function checkCompletion() {
+      try {
+        const response = await fetch("/api/onboarding/status", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { completed?: boolean };
+        if (!cancelled && payload.completed) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        // Ignore transient polling failures.
+      }
+    }
+
+    void checkCompletion();
+    const interval = setInterval(() => {
+      void checkCompletion();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [setupConfirmed, router]);
 
   function getTextContent(m: UIMessage): string {
@@ -128,9 +175,7 @@ export function SetupChat({
   return (
     <div className="h-[calc(100vh-72px)] bg-vigil-bgPri flex flex-col md:flex-row text-vigil-textPri overflow-hidden fade-up">
       <div className="flex flex-col md:w-[360px] w-full border-b md:border-b-0 md:border-r border-vigil-borderSubtle p-6 md:p-10 max-h-[35vh] md:max-h-none h-auto md:h-full flex-shrink-0 bg-vigil-bgSec overflow-y-auto">
-        <h2 className="font-serif text-[22px] tracking-[0.2em] mb-12 uppercase text-vigil-textPri font-light">
-          Vigil
-        </h2>
+
         <div className="text-[11px] font-sans uppercase tracking-[0.16em] text-vigil-textSec mb-6">
           SETUP GUIDE
         </div>
@@ -209,11 +254,10 @@ export function SetupChat({
                   className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"} fade-up delay-100`}
                 >
                   <div
-                    className={`p-4 max-w-[85%] ${
-                      m.role === "user"
-                        ? "bg-vigil-bgTer text-vigil-textPri rounded-[4px_4px_0_4px]"
-                        : "bg-vigil-bgSec border border-vigil-borderSubtle text-vigil-textPri rounded-[4px_4px_4px_0]"
-                    }`}
+                    className={`p-4 max-w-[85%] ${m.role === "user"
+                      ? "bg-vigil-bgTer text-vigil-textPri rounded-[4px_4px_0_4px]"
+                      : "bg-vigil-bgSec border border-vigil-borderSubtle text-vigil-textPri rounded-[4px_4px_4px_0]"
+                      }`}
                   >
                     {text ? (
                       <p className="text-[15px] font-light leading-relaxed whitespace-pre-wrap break-words min-w-0">
@@ -259,6 +303,16 @@ export function SetupChat({
                 <span className="inline-block px-4 py-2 rounded-[2px] bg-vigil-statusWatchBg text-vigil-statusWatch border border-vigil-statusWatchBorder text-sm font-medium">
                   Plan saved. Redirecting to dashboard...
                 </span>
+              </div>
+            )}
+
+            {(hasSavedAction || setupConfirmed) && (
+              <div className="text-center">
+                <Link href="/dashboard" className="inline-flex">
+                  <Button variant="secondary" className="!h-[40px] !px-5 text-[12px]">
+                    Go To Dashboard
+                  </Button>
+                </Link>
               </div>
             )}
 

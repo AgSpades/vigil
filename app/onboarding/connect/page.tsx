@@ -2,12 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/Button";
 import { auth0 } from "@/lib/auth0";
+import { hasCompletedOnboarding } from "@/lib/db/users";
 import { ConnectedAccounts } from "@/components/ConnectedAccounts";
 
 export default async function ConnectPage() {
   const session = await auth0.getSession();
   if (!session) {
     redirect("/auth/login");
+  }
+
+  const onboardingCompleted = await hasCompletedOnboarding(session.user.sub);
+  if (onboardingCompleted) {
+    redirect("/dashboard");
   }
 
   return (
