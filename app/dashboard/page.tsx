@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { auth0 } from "@/lib/auth0";
 import { HeartbeatButton } from "@/components/HeartbeatButton";
-import { CONNECTED_SERVICES } from "@/lib/auth0-connected-accounts";
+import {
+  CONNECTED_SERVICES,
+  type ConnectedServiceDefinition,
+} from "@/lib/auth0-connected-accounts";
 import { getAuditLogs } from "@/lib/db/audit";
 import { getLastHeartbeat } from "@/lib/db/heartbeats";
 import { getStagedActions } from "@/lib/db/staged-actions";
@@ -199,7 +202,7 @@ export default async function DashboardPage() {
 
           <div className="flex flex-col gap-3">
             {actions.length > 0 ? (
-              actions.map((action) => (
+              actions.map((action: Awaited<ReturnType<typeof getStagedActions>>[number]) => (
                 <div
                   key={action.id}
                   className="bg-vigil-bgSec border border-vigil-borderSubtle rounded-[4px] px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
@@ -242,7 +245,7 @@ export default async function DashboardPage() {
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-4">
             {connectedServices.length > 0 ? (
-              connectedServices.map((service) => (
+              connectedServices.map((service: ConnectedServiceDefinition) => (
                 <div
                   key={service.id}
                   className="w-full sm:w-[220px] flex-shrink-0 bg-vigil-bgSec border border-vigil-borderSubtle rounded-[4px] p-5 relative overflow-hidden"
@@ -287,7 +290,7 @@ export default async function DashboardPage() {
 
           <div className="flex flex-col border-t border-vigil-borderSubtle">
             {auditLogs.length > 0 ? (
-              auditLogs.map((log) => (
+              auditLogs.map((log: Awaited<ReturnType<typeof getAuditLogs>>[number]) => (
                 <div
                   key={log.id}
                   className="py-4 border-b border-vigil-borderSubtle flex flex-col gap-2"

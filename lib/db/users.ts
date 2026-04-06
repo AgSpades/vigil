@@ -60,7 +60,7 @@ export async function markCancelled(userId: string) {
   });
 }
 
-export async function getAllActiveUsers() {
+export async function getAllActiveUsers(): Promise<{ id: string }[]> {
   return prisma.user.findMany({
     where: {
       config: {
