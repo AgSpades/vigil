@@ -1,6 +1,9 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": "worker.ts",
+	"build": {
+		"command": "pnpm exec opennextjs-cloudflare build"
+	},
 	"name": "vigil",
 	"compatibility_date": "2026-04-05",
 	"compatibility_flags": [
