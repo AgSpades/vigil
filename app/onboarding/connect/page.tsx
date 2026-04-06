@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/Button";
 import { auth0 } from "@/lib/auth0";
-import { fetchConnectedAccounts } from "@/lib/auth0-my-account";
 import { ConnectedAccounts } from "@/components/ConnectedAccounts";
 
 export default async function ConnectPage() {
@@ -10,8 +9,6 @@ export default async function ConnectPage() {
   if (!session) {
     redirect("/auth/login");
   }
-
-  const accounts = await fetchConnectedAccounts().catch(() => []);
 
   return (
     <main className="min-h-[calc(100vh-72px)] bg-vigil-bgPri flex flex-col items-center justify-center p-6 text-vigil-textPri relative fade-up">
@@ -31,7 +28,7 @@ export default async function ConnectPage() {
 
         <div className="mb-12">
           <ConnectedAccounts
-            initialAccounts={accounts}
+            initialAccounts={[]}
             returnTo="/onboarding/connect"
             allowDisconnect={false}
           />

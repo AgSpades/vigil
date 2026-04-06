@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/Button";
 import {
   CONNECTED_SERVICES,
@@ -21,12 +21,62 @@ export function ConnectedAccounts({
 }) {
   const [accounts, setAccounts] = useState(initialAccounts);
   const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const connected = useMemo(
     () => getConnectedServicesFromAccounts(accounts),
     [accounts],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshAccounts() {
+      setIsRefreshing(true);
+
+      try {
+        const response = await fetch("/api/connections", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(payload.error ?? "Failed to load connected accounts");
+        }
+
+        const payload = (await response.json()) as {
+          accounts?: ConnectedAccountSummary[];
+        };
+
+        if (!cancelled) {
+          setAccounts(Array.isArray(payload.accounts) ? payload.accounts : []);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to load connected accounts",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRefreshing(false);
+        }
+      }
+    }
+
+    void refreshAccounts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleDisconnect(account: ConnectedAccountSummary) {
     setPendingAccountId(account.id);
@@ -72,6 +122,10 @@ export function ConnectedAccounts({
       {CONNECTED_SERVICES.map((service) => {
         const account = getAccountForService(accounts, service);
         const isConnected = connected.includes(service.id) && account;
+        const isSessionBackedAccount =
+          typeof account?.id === "string" && account.id.startsWith("session:");
+        const canDisconnect =
+          Boolean(account) && allowDisconnect && !isSessionBackedAccount;
 
         return (
           <div
@@ -93,11 +147,11 @@ export function ConnectedAccounts({
                 <span className="text-xs font-medium px-3 py-1 rounded-full bg-emerald-900/50 text-emerald-400 border border-emerald-800">
                   Connected
                 </span>
-                {allowDisconnect ? (
+                {canDisconnect ? (
                   <Button
                     type="button"
                     variant="danger-ghost"
-                    disabled={pendingAccountId === account.id}
+                    disabled={pendingAccountId === account.id || isRefreshing}
                     className="!h-[34px] !px-4 text-[11px]"
                     onClick={() => handleDisconnect(account)}
                   >

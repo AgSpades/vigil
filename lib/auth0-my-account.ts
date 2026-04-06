@@ -9,95 +9,89 @@ export type ConnectedAccountSummary = {
   expiresAt?: string;
 };
 
-function getMyAccountAudience() {
-  const domain = process.env.AUTH0_DOMAIN;
-
-  if (!domain) {
-    throw new Error("AUTH0_DOMAIN is required");
+function parseScopes(scope: unknown): string[] {
+  if (Array.isArray(scope)) {
+    return scope.map((value) => String(value).trim()).filter(Boolean);
   }
 
-  return `https://${domain}/me/`;
-}
-
-function getMyAccountEndpoint(path = "") {
-  const domain = process.env.AUTH0_DOMAIN;
-
-  if (!domain) {
-    throw new Error("AUTH0_DOMAIN is required");
+  if (typeof scope !== "string") {
+    return [];
   }
 
-  return `https://${domain}/me/v1/connected-accounts${path}`;
+  return scope
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
-async function getMyAccountToken(scope: string) {
-  const accessToken = await auth0.getAccessToken({
-    audience: getMyAccountAudience(),
-    scope,
+function getTokenSetScope(tokenSet: Record<string, unknown>): unknown {
+  if (typeof tokenSet.scope === "string" || Array.isArray(tokenSet.scope)) {
+    return tokenSet.scope;
+  }
+
+  if (
+    typeof tokenSet.requestedScope === "string" ||
+    Array.isArray(tokenSet.requestedScope)
+  ) {
+    return tokenSet.requestedScope;
+  }
+
+  return undefined;
+}
+
+export async function fetchConnectedAccounts(options?: {
+  probeConnections?: string[];
+}): Promise<ConnectedAccountSummary[]> {
+  const session = await auth0.getSession();
+
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  const uniqueConnections = Array.from(
+    new Set((options?.probeConnections ?? []).filter(Boolean)),
+  );
+
+  // In route handlers, probing here materializes connection token sets right after /auth/connect callback.
+  for (const connection of uniqueConnections) {
+    try {
+      await auth0.getAccessTokenForConnection({ connection });
+    } catch {
+      // Ignore probe failures for non-connected providers.
+    }
+  }
+
+  const refreshedSession =
+    uniqueConnections.length > 0 ? await auth0.getSession() : session;
+  const tokenSets =
+    refreshedSession?.connectionTokenSets ?? session.connectionTokenSets ?? [];
+
+  return tokenSets.map((tokenSet, index) => {
+    const normalizedTokenSet = tokenSet as Record<string, unknown>;
+    const connection =
+      typeof normalizedTokenSet.connection === "string"
+        ? normalizedTokenSet.connection
+        : "unknown-connection";
+
+    return {
+      id: `session:${connection}:${index}`,
+      connection,
+      scopes: parseScopes(getTokenSetScope(normalizedTokenSet)),
+      accessType: "offline",
+      expiresAt:
+        typeof normalizedTokenSet.expiresAt === "number"
+          ? new Date(normalizedTokenSet.expiresAt * 1000).toISOString()
+          : undefined,
+    };
   });
-
-  return accessToken.token;
-}
-
-export async function fetchConnectedAccounts(): Promise<ConnectedAccountSummary[]> {
-  const token = await getMyAccountToken("read:me:connected_accounts");
-
-  const response = await fetch(getMyAccountEndpoint(), {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch connected accounts: ${response.status} ${await response.text()}`,
-    );
-  }
-
-  const payload = (await response.json()) as Array<Record<string, unknown>>;
-
-  return payload.map((account) => ({
-    id: String(account.id),
-    connection: String(account.connection),
-    scopes: Array.isArray(account.scopes)
-      ? account.scopes.map((scope) => String(scope))
-      : [],
-    accessType:
-      typeof account.access_type === "string"
-        ? account.access_type
-        : typeof account.accessType === "string"
-          ? account.accessType
-          : undefined,
-    createdAt:
-      typeof account.created_at === "string"
-        ? account.created_at
-        : typeof account.createdAt === "string"
-          ? account.createdAt
-          : undefined,
-    expiresAt:
-      typeof account.expires_at === "string"
-        ? account.expires_at
-        : typeof account.expiresAt === "string"
-          ? account.expiresAt
-          : undefined,
-  }));
 }
 
 export async function disconnectConnectedAccount(accountId: string) {
-  const token = await getMyAccountToken("delete:me:connected_accounts");
-
-  const response = await fetch(getMyAccountEndpoint(`/${accountId}`), {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-
-  if (!response.ok && response.status !== 204) {
+  if (accountId.startsWith("session:")) {
     throw new Error(
-      `Failed to disconnect account: ${response.status} ${await response.text()}`,
+      "Disconnect is not available for session-backed connected accounts in this tenant setup.",
     );
   }
+
+  throw new Error("Disconnect is not available in the current Auth0 SDK flow.");
 }

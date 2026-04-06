@@ -1,4 +1,5 @@
 import { auth0 } from "@/lib/auth0";
+import { CONNECTED_SERVICES } from "@/lib/auth0-connected-accounts";
 import {
   disconnectConnectedAccount,
   fetchConnectedAccounts,
@@ -12,7 +13,11 @@ export async function GET() {
   }
 
   try {
-    const accounts = await fetchConnectedAccounts();
+    const probeConnections = Array.from(
+      new Set(CONNECTED_SERVICES.map((service) => service.connectionName)),
+    );
+
+    const accounts = await fetchConnectedAccounts({ probeConnections });
     return Response.json({ accounts });
   } catch (error) {
     return Response.json(
@@ -40,6 +45,16 @@ export async function DELETE(req: Request) {
 
   if (!id) {
     return Response.json({ error: "Missing account id" }, { status: 400 });
+  }
+
+  if (id.startsWith("session:")) {
+    return Response.json(
+      {
+        error:
+          "Disconnect is not available for session-backed connected accounts in this tenant setup.",
+      },
+      { status: 400 },
+    );
   }
 
   try {
