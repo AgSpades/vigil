@@ -91,6 +91,7 @@ export function ConnectedAccounts({
         body: JSON.stringify({
           id: account.id,
           connection: account.connection,
+          scopes: account.scopes,
         }),
       });
 
@@ -99,9 +100,19 @@ export function ConnectedAccounts({
         throw new Error(payload.error ?? "Failed to disconnect account");
       }
 
+      const payload = (await response.json().catch(() => ({}))) as {
+        cancelledPendingActions?: number;
+      };
+
       setAccounts((current) =>
         current.filter((entry) => entry.id !== account.id),
       );
+
+      if ((payload.cancelledPendingActions ?? 0) > 0) {
+        setError(
+          `Disconnected. Cancelled ${payload.cancelledPendingActions} pending task(s) tied to this service.`,
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to disconnect account",
