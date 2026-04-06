@@ -17,25 +17,37 @@ export const GOOGLE_DRIVE_SCOPES = [
 export const GITHUB_SCOPES = ["repo"];
 
 /**
- * Helper to wrap tools with Google (Gmail) Token Vault access.
+ * Helper factory to wrap tools with Google (Gmail) Token Vault access.
+ * Keep this lazy to avoid requiring Auth0 env vars during build-time module evaluation.
  */
-export const withGmail = auth0AI.withTokenVault({
-  connection: "google-oauth2",
-  scopes: GOOGLE_GMAIL_SCOPES,
-  refreshToken: async () => {
-    const session = await auth0.getSession();
-    return session?.tokenSet?.refreshToken as string;
-  },
-});
+export function withGmail(tool: any) {
+  return auth0AI.withTokenVault(
+    {
+      connection: "google-oauth2",
+      scopes: GOOGLE_GMAIL_SCOPES,
+      refreshToken: async () => {
+        const session = await auth0.getSession();
+        return session?.tokenSet?.refreshToken as string;
+      },
+    },
+    tool,
+  );
+}
 
 /**
- * Helper to wrap tools with GitHub Token Vault access.
+ * Helper factory to wrap tools with GitHub Token Vault access.
+ * Keep this lazy to avoid requiring Auth0 env vars during build-time module evaluation.
  */
-export const withGitHub = auth0AI.withTokenVault({
-  connection: "github",
-  scopes: GITHUB_SCOPES,
-  refreshToken: async () => {
-    const session = await auth0.getSession();
-    return session?.tokenSet?.refreshToken as string;
-  },
-});
+export function withGitHub(tool: any) {
+  return auth0AI.withTokenVault(
+    {
+      connection: "github",
+      scopes: GITHUB_SCOPES,
+      refreshToken: async () => {
+        const session = await auth0.getSession();
+        return session?.tokenSet?.refreshToken as string;
+      },
+    },
+    tool,
+  );
+}
