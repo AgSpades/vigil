@@ -6,11 +6,11 @@ export async function recordHeartbeat(userId: string) {
   });
 }
 
-export async function getLastHeartbeat(userId: string): Promise<Date> {
+export async function getLastHeartbeat(userId: string): Promise<Date | null> {
   const beat = await prisma.heartbeat.findFirst({
     where: { userId },
     orderBy: { checkedInAt: "desc" },
     select: { checkedInAt: true },
   });
-  return beat?.checkedInAt ?? new Date(0);
+  return beat?.checkedInAt ?? null;
 }

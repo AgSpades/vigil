@@ -45,7 +45,11 @@ async function sendCIBAPush(userId: string, silenceDays: number) {
       client_secret: clientSecret,
       scope: "openid",
       audience,
-      login_hint: JSON.stringify({ format: "iss_sub", iss: `https://${domain}/`, sub: userId }),
+      login_hint: JSON.stringify({
+        format: "iss_sub",
+        iss: `https://${domain}/`,
+        sub: userId,
+      }),
       binding_message: `Vigil: no check-in for ${Math.floor(silenceDays)} days. Approve to execute your instructions, or cancel to stand down.`,
     }),
   });
@@ -63,6 +67,9 @@ export async function checkHeartbeat(userId: string) {
   if (!config || config.activatedAt || config.cancelledAt) return;
 
   const lastBeat = await getLastHeartbeat(userId);
+  // lastBeat will be null if the user has never checked in — treat that as silenceDays = Infinity, which will trigger the CIBA push immediately. Otherwise, calculate silenceDays as normal.
+  if (!lastBeat) return;
+  
   const silenceDays = (Date.now() - lastBeat.getTime()) / 86_400_000;
 
   // Still within threshold — nothing to do
@@ -78,8 +85,7 @@ export async function checkHeartbeat(userId: string) {
 
   // CIBA was already sent — check if grace window has elapsed
   const graceElapsed =
-    Date.now() - config.cibaSentAt.getTime() >
-    config.graceHours * 3_600_000;
+    Date.now() - config.cibaSentAt.getTime() > config.graceHours * 3_600_000;
 
   if (graceElapsed) {
     // User did not respond — hand off to the LLM activation agent
