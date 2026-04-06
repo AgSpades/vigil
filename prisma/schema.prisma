@@ -7,14 +7,14 @@ datasource db {
 }
 
 model User {
-  id            String          @id // Auth0 sub
+  id            String           @id
   email         String
-  createdAt     DateTime        @default(now())
-  config        VigilConfig?
+  createdAt     DateTime         @default(now())
+  auditLogs     AuditLog[]
+  contacts      ContactContext[]
   heartbeats    Heartbeat[]
   stagedActions StagedAction[]
-  contacts      ContactContext[]
-  auditLogs     AuditLog[]
+  config        VigilConfig?
 }
 
 model Heartbeat {
@@ -36,39 +36,35 @@ model VigilConfig {
   user        User      @relation(fields: [userId], references: [id])
 }
 
-// One row per staged action, written by the setup chat agent
 model StagedAction {
   id           Int       @id @default(autoincrement())
   userId       String
-  triggerDays  Int // silence duration that triggers this
-  actionType   String // 'gmail_send' | 'drive_archive' | 'github_transfer' | 'webhook'
-  actionConfig Json // structured config extracted by LLM
+  triggerDays  Int
+  actionType   String
+  actionConfig Json
   executedAt   DateTime?
-  status       String    @default("pending") // 'pending' | 'executed' | 'failed' | 'cancelled'
+  status       String    @default("pending")
   user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId, status])
 }
 
-// Per-contact relationship context — used by LLM to draft messages
 model ContactContext {
-  id           Int    @id @default(autoincrement())
+  id           Int     @id @default(autoincrement())
   userId       String
   contactName  String
   contactEmail String?
-  relationship String // free text: "sister", "mentor", "colleague"
-  context      String // user's own words about this person
-  user         User   @relation(fields: [userId], references: [id])
+  relationship String
+  context      String
+  user         User    @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
 
-// Immutable audit trail
 model AuditLog {
   id         Int      @id @default(autoincrement())
   userId     String
-  eventType  String // 'heartbeat' | 'ciba_sent' | 'ciba_approved' | 'ciba_denied'
-  // | 'action_executed' | 'action_failed' | 'agent_cancelled' | 'setup_confirmed'
+  eventType  String
   detail     Json?
   occurredAt DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id])
