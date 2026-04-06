@@ -22,7 +22,7 @@ export const CONNECTED_SERVICES: ConnectedServiceDefinition[] = [
   {
     id: "gmail",
     name: "Gmail",
-    description: "Send farewell emails to your contacts",
+    description: "Send emails to your contacts after a timeperiod.",
     connectionName: "google-oauth2",
     scopes: ["https://www.googleapis.com/auth/gmail.send"],
   },
