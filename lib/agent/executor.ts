@@ -33,13 +33,16 @@ export async function triggerActivation(userId: string, silenceDays: number) {
 
   const actionsDescription = actions
     .map(
-      (a) =>
+      (a: (typeof actions)[number]) =>
         `- Action ID ${a.id}: ${a.actionType} | config: ${JSON.stringify(a.actionConfig)}`,
     )
     .join("\n");
 
   const contactsDescription = contacts
-    .map((c) => `- ${c.contactName} (${c.relationship}): ${c.context}`)
+    .map(
+      (c: (typeof contacts)[number]) =>
+        `- ${c.contactName} (${c.relationship}): ${c.context}`,
+    )
     .join("\n");
 
   const gmailTool = auth0AI.withTokenVault(
