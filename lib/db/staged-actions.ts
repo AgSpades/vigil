@@ -1,5 +1,4 @@
 import { prisma } from "./prisma";
-import type { Prisma } from "@prisma/client";
 
 const ACTION_TYPES_BY_SERVICE = {
   gmail: ["gmail_send"],
@@ -18,7 +17,7 @@ export async function saveStagedAction(data: {
       userId: data.userId,
       triggerDays: data.triggerDays,
       actionType: data.actionType,
-      actionConfig: data.actionConfig as Prisma.InputJsonValue,
+      actionConfig: data.actionConfig as any,
     },
   });
 }

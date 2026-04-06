@@ -1,5 +1,4 @@
 import { prisma } from "./prisma";
-import type { Prisma } from "@prisma/client";
 
 export async function logAudit(
   userId: string,
@@ -10,7 +9,7 @@ export async function logAudit(
     data: {
       userId,
       eventType,
-      detail: (detail ?? null) as Prisma.InputJsonValue,
+      detail: detail ? (detail as any) : undefined,
     },
   });
 }

@@ -60,9 +60,7 @@ export async function triggerActivation(userId: string, silenceDays: number) {
         subject: z.string(),
         body: z
           .string()
-          .describe(
-            "Fully drafted email body — personalized, not a template",
-          ),
+          .describe("Fully drafted email body — personalized, not a template"),
       }),
       execute: async ({ actionId, to, subject, body }) => {
         try {
