@@ -29,10 +29,6 @@ function formatTimestamp(date: Date | null): string {
   }).format(date);
 }
 
-function getLastHeartbeatOrNull(date: Date): Date | null {
-  return date.getTime() === 0 ? null : date;
-}
-
 export default async function DashboardPage() {
   const session = await auth0.getSession();
   if (!session) {
@@ -55,7 +51,7 @@ export default async function DashboardPage() {
       }),
     ]);
 
-  const lastSeen = getLastHeartbeatOrNull(lastHeartbeat);
+  const lastSeen = lastHeartbeat;
 
   const statusKey = config?.cancelledAt
     ? "down"

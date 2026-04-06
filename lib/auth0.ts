@@ -1,16 +1,8 @@
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
-import dns from "node:dns";
 
-// Force Node.js to prefer IPv4 over IPv6 when resolving hostnames.
-// This fixes ENOTFOUND errors on some networks when calling Auth0's discovery endpoint.
-if (typeof dns.setDefaultResultOrder === "function") {
-  dns.setDefaultResultOrder("ipv4first");
-}
-
-const appBaseUrl = (process.env.APP_BASE_URL || "http://localhost:3000").replace(
-  /\/$/,
-  "",
-);
+const appBaseUrl = (
+  process.env.APP_BASE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
 
 export const auth0 = new Auth0Client({
   domain: process.env.AUTH0_DOMAIN!,

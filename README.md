@@ -47,9 +47,9 @@ ACTIVATION  (LLM agent)
 | LLM           | `moonshotai/kimi-k2-instruct` via Groq                             |
 | LLM provider  | `@ai-sdk/groq`                                                     |
 | Database      | PostgreSQL via Prisma 7 (`@prisma/adapter-pg`)                     |
-| Scheduler     | Vercel Cron Jobs (hourly)                                          |
+| Scheduler     | Cloudflare Cron Triggers (hourly)                                  |
 | Styling       | Tailwind CSS v4                                                    |
-| Deployment    | Vercel                                                             |
+| Deployment    | Cloudflare Workers (OpenNext)                                      |
 
 ---
 
@@ -96,8 +96,10 @@ vigil/
 │   └── AuditLog.tsx
 ├── prisma/schema.prisma
 ├── prisma.config.ts                   # Prisma 7 datasource config
-├── proxy.ts                           # Next.js 16 Auth0 middleware
-├── vercel.json                        # Hourly cron schedule
+├── middleware.ts                      # Auth0 middleware
+├── worker.ts                          # Custom worker with scheduled cron handler
+├── wrangler.jsonc                     # Cloudflare worker + cron config
+├── open-next.config.ts                # OpenNext Cloudflare config
 └── .env.example
 ```
 
@@ -185,7 +187,8 @@ Both phases use the same Groq client:
 
 ```bash
 pnpm build
-vercel deploy
+pnpm preview
+pnpm deploy
 ```
 
-Set all environment variables in the Vercel dashboard. The hourly cron (`vercel.json`) runs automatically on Vercel.
+Set all environment variables in the Cloudflare Workers dashboard (or Wrangler secrets). The hourly cron runs via `wrangler.jsonc` trigger (`0 * * * *`) and executes through the custom `worker.ts` scheduled handler.
