@@ -26,7 +26,7 @@ async function scheduleAlarm() {
 async function showReminder() {
   await chrome.notifications.create(NOTIFICATION_ID, {
     type: "basic",
-    iconUrl: "icon-128.png",
+    iconUrl: chrome.runtime.getURL("icon-128.png"),
     title: "Vigil check-in due",
     message: "Tap to open Vigil and complete your secure check-in.",
     priority: 2,

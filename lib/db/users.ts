@@ -7,6 +7,44 @@ import { fetchConnectedAccounts } from "../auth0-my-account";
 import { sql } from "./client";
 import type { User, VigilConfig } from "./types";
 
+const SECURE_CHECKIN_COLUMNS = [
+  "pinHash",
+  "failedAttempts",
+  "lockUntil",
+  "lastSeenAt",
+] as const;
+
+let secureCheckinSchemaReadyPromise: Promise<boolean> | null = null;
+
+type DbErrorWithCode = Error & { code?: string };
+
+function isMissingColumnError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as DbErrorWithCode).code === "42703"
+  );
+}
+
+export async function isSecureCheckinSchemaReady(): Promise<boolean> {
+  if (!secureCheckinSchemaReadyPromise) {
+    secureCheckinSchemaReadyPromise = (async () => {
+      const rows = await sql`
+        SELECT COUNT(*)::int AS "count"
+        FROM "information_schema"."columns"
+        WHERE "table_name" = 'User'
+          AND "column_name" = ANY(${SECURE_CHECKIN_COLUMNS}::text[])
+      `;
+
+      const count = Number((rows[0] as { count: number | string }).count ?? 0);
+      return count === SECURE_CHECKIN_COLUMNS.length;
+    })();
+  }
+
+  return secureCheckinSchemaReadyPromise;
+}
+
 export interface UserCheckinSecurity {
   pinHash: string | null;
   failedAttempts: number;
@@ -130,16 +168,33 @@ export async function hasCompletedOnboarding(userId: string): Promise<boolean> {
 export async function getUserCheckinSecurity(
   userId: string,
 ): Promise<UserCheckinSecurity | null> {
-  const rows = await sql`
-    SELECT "pinHash", "failedAttempts", "lockUntil", "lastSeenAt"
-    FROM "User"
-    WHERE "id" = ${userId}
-    LIMIT 1
-  `;
-  return (rows[0] as UserCheckinSecurity | undefined) ?? null;
+  const schemaReady = await isSecureCheckinSchemaReady();
+  if (!schemaReady) {
+    return null;
+  }
+
+  try {
+    const rows = await sql`
+      SELECT "pinHash", "failedAttempts", "lockUntil", "lastSeenAt"
+      FROM "User"
+      WHERE "id" = ${userId}
+      LIMIT 1
+    `;
+    return (rows[0] as UserCheckinSecurity | undefined) ?? null;
+  } catch (error) {
+    if (isMissingColumnError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function setUserPin(userId: string, pinHash: string): Promise<void> {
+  const schemaReady = await isSecureCheckinSchemaReady();
+  if (!schemaReady) {
+    throw new Error("SECURE_CHECKIN_SCHEMA_MISSING");
+  }
+
   await sql`
     UPDATE "User"
     SET "pinHash" = ${pinHash}, "failedAttempts" = 0, "lockUntil" = NULL
@@ -148,6 +203,11 @@ export async function setUserPin(userId: string, pinHash: string): Promise<void>
 }
 
 export async function markCheckinSuccess(userId: string): Promise<void> {
+  const schemaReady = await isSecureCheckinSchemaReady();
+  if (!schemaReady) {
+    throw new Error("SECURE_CHECKIN_SCHEMA_MISSING");
+  }
+
   await sql`
     UPDATE "User"
     SET "lastSeenAt" = NOW(), "failedAttempts" = 0, "lockUntil" = NULL
@@ -160,6 +220,11 @@ export async function markCheckinFailure(
   maxAttempts = 5,
   lockMinutes = 15,
 ): Promise<{ failedAttempts: number; lockUntil: Date | null }> {
+  const schemaReady = await isSecureCheckinSchemaReady();
+  if (!schemaReady) {
+    throw new Error("SECURE_CHECKIN_SCHEMA_MISSING");
+  }
+
   const rows = await sql`
     UPDATE "User"
     SET

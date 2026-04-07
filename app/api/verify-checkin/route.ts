@@ -4,6 +4,7 @@ import { recordHeartbeat } from "@/lib/db/heartbeats";
 import {
   ensureVigilConfig,
   getUserCheckinSecurity,
+  isSecureCheckinSchemaReady,
   markCheckinFailure,
   markCheckinSuccess,
   upsertUser,
@@ -49,6 +50,16 @@ export async function POST(request: Request) {
 
   await upsertUser(userId, session.user.email ?? "");
   await ensureVigilConfig(userId);
+
+  const schemaReady = await isSecureCheckinSchemaReady();
+  if (!schemaReady) {
+    return Response.json(
+      {
+        error: "Secure check-in is temporarily unavailable. Please run database migrations.",
+      },
+      { status: 503 },
+    );
+  }
 
   const security = await getUserCheckinSecurity(userId);
   if (!security?.pinHash) {
