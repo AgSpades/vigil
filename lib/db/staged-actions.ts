@@ -1,4 +1,5 @@
-import { prisma } from "./prisma";
+import { sql } from "./client";
+import type { StagedAction } from "./types";
 
 const ACTION_TYPES_BY_SERVICE = {
   gmail: ["gmail_send"],
@@ -11,76 +12,87 @@ export async function saveStagedAction(data: {
   triggerDays: number;
   actionType: string;
   actionConfig: Record<string, unknown>;
-}) {
-  return prisma.stagedAction.create({
-    data: {
-      userId: data.userId,
-      triggerDays: data.triggerDays,
-      actionType: data.actionType,
-      actionConfig: data.actionConfig as any,
-    },
-  });
+}): Promise<StagedAction> {
+  const rows = await sql`
+    INSERT INTO "StagedAction" ("userId", "triggerDays", "actionType", "actionConfig", "status")
+    VALUES (${data.userId}, ${data.triggerDays}, ${data.actionType}, ${JSON.stringify(data.actionConfig)}::jsonb, 'pending')
+    RETURNING *
+  `;
+  return rows[0] as StagedAction;
 }
 
 export async function getPendingStagedActions(
   userId: string,
   silenceDays: number,
-) {
-  return prisma.stagedAction.findMany({
-    where: {
-      userId,
-      status: "pending",
-      triggerDays: { lte: silenceDays },
-    },
-    orderBy: { triggerDays: "asc" },
-  });
+): Promise<StagedAction[]> {
+  const rows = await sql`
+    SELECT * FROM "StagedAction"
+    WHERE "userId" = ${userId}
+      AND "status" = 'pending'
+      AND "triggerDays" <= ${silenceDays}
+    ORDER BY "triggerDays" ASC
+  `;
+  return rows as StagedAction[];
 }
 
-export async function markActionExecuted(id: number) {
-  return prisma.stagedAction.update({
-    where: { id },
-    data: { status: "executed", executedAt: new Date() },
-  });
+export async function markActionExecuted(id: number): Promise<StagedAction> {
+  const rows = await sql`
+    UPDATE "StagedAction"
+    SET "status" = 'executed', "executedAt" = NOW()
+    WHERE "id" = ${id}
+    RETURNING *
+  `;
+  return rows[0] as StagedAction;
 }
 
-export async function markActionFailed(id: number) {
-  return prisma.stagedAction.update({
-    where: { id },
-    data: { status: "failed" },
-  });
+export async function markActionFailed(id: number): Promise<StagedAction> {
+  const rows = await sql`
+    UPDATE "StagedAction"
+    SET "status" = 'failed'
+    WHERE "id" = ${id}
+    RETURNING *
+  `;
+  return rows[0] as StagedAction;
 }
 
-export async function cancelAllActions(userId: string) {
-  return prisma.stagedAction.updateMany({
-    where: { userId, status: "pending" },
-    data: { status: "cancelled" },
-  });
+export async function cancelAllActions(userId: string): Promise<number> {
+  const rows = await sql`
+    UPDATE "StagedAction"
+    SET "status" = 'cancelled'
+    WHERE "userId" = ${userId} AND "status" = 'pending'
+    RETURNING "id"
+  `;
+  return rows.length;
 }
 
-export async function getStagedActions(userId: string) {
-  return prisma.stagedAction.findMany({
-    where: { userId },
-    orderBy: { triggerDays: "asc" },
-  });
+export async function getStagedActions(
+  userId: string,
+): Promise<StagedAction[]> {
+  const rows = await sql`
+    SELECT * FROM "StagedAction"
+    WHERE "userId" = ${userId}
+    ORDER BY "triggerDays" ASC
+  `;
+  return rows as StagedAction[];
 }
 
-export async function cancelStagedActionById(userId: string, actionId: number) {
-  const result = await prisma.stagedAction.updateMany({
-    where: {
-      id: actionId,
-      userId,
-      status: "pending",
-    },
-    data: { status: "cancelled" },
-  });
-
-  return result.count > 0;
+export async function cancelStagedActionById(
+  userId: string,
+  actionId: number,
+): Promise<boolean> {
+  const rows = await sql`
+    UPDATE "StagedAction"
+    SET "status" = 'cancelled'
+    WHERE "id" = ${actionId} AND "userId" = ${userId} AND "status" = 'pending'
+    RETURNING "id"
+  `;
+  return rows.length > 0;
 }
 
 export async function cancelPendingActionsForServices(
   userId: string,
   services: Array<keyof typeof ACTION_TYPES_BY_SERVICE>,
-) {
+): Promise<number> {
   const actionTypes = Array.from(
     new Set(services.flatMap((service) => ACTION_TYPES_BY_SERVICE[service])),
   );
@@ -89,14 +101,13 @@ export async function cancelPendingActionsForServices(
     return 0;
   }
 
-  const result = await prisma.stagedAction.updateMany({
-    where: {
-      userId,
-      status: "pending",
-      actionType: { in: actionTypes },
-    },
-    data: { status: "cancelled" },
-  });
-
-  return result.count;
+  const rows = await sql`
+    UPDATE "StagedAction"
+    SET "status" = 'cancelled'
+    WHERE "userId" = ${userId}
+      AND "status" = 'pending'
+      AND "actionType" = ANY(${actionTypes})
+    RETURNING "id"
+  `;
+  return rows.length;
 }
