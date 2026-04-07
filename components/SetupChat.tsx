@@ -27,8 +27,10 @@ const SUGGESTED_PROMPTS = [
 
 export function SetupChat({
   connectedServices = [],
+  redirectOnCompletion = true,
 }: {
   connectedServices?: string[];
+  redirectOnCompletion?: boolean;
 }) {
   const router = useRouter();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -62,15 +64,17 @@ export function SetupChat({
     ),
   );
 
+  const shouldLockComposer = redirectOnCompletion && setupConfirmed;
+
   useEffect(() => {
-    if (setupConfirmed) {
+    if (redirectOnCompletion && setupConfirmed) {
       const t = setTimeout(() => router.push("/dashboard"), 1500);
       return () => clearTimeout(t);
     }
-  }, [setupConfirmed, router]);
+  }, [redirectOnCompletion, setupConfirmed, router]);
 
   useEffect(() => {
-    if (setupConfirmed) {
+    if (!redirectOnCompletion || setupConfirmed) {
       return;
     }
 
@@ -105,7 +109,7 @@ export function SetupChat({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [setupConfirmed, router]);
+  }, [redirectOnCompletion, setupConfirmed, router]);
 
   function getTextContent(m: UIMessage): string {
     return (
@@ -126,7 +130,8 @@ export function SetupChat({
     }
 
     const toolName = type.replace(/^tool-/, "");
-    const state = typeof part.state === "string" ? part.state : "input-available";
+    const state =
+      typeof part.state === "string" ? part.state : "input-available";
 
     const labels: Record<string, string> = {
       saveAction: "Queued action",
@@ -167,7 +172,7 @@ export function SetupChat({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || isLoading || setupConfirmed) return;
+    if (!input.trim() || isLoading || shouldLockComposer) return;
     sendMessage({ role: "user", parts: [{ type: "text", text: input }] });
     setInput("");
   }
@@ -175,7 +180,6 @@ export function SetupChat({
   return (
     <div className="h-[calc(100vh-72px)] bg-vigil-bgPri flex flex-col md:flex-row text-vigil-textPri overflow-hidden fade-up">
       <div className="flex flex-col md:w-[360px] w-full border-b md:border-b-0 md:border-r border-vigil-borderSubtle p-6 md:p-10 max-h-[35vh] md:max-h-none h-auto md:h-full flex-shrink-0 bg-vigil-bgSec overflow-y-auto">
-
         <div className="text-[11px] font-sans uppercase tracking-[0.16em] text-vigil-textSec mb-6">
           SETUP GUIDE
         </div>
@@ -217,7 +221,10 @@ export function SetupChat({
                 No connected services yet.
               </span>
               <Link href="/onboarding/connect">
-                <Button variant="secondary" className="!h-[36px] !px-4 text-[11px]">
+                <Button
+                  variant="secondary"
+                  className="!h-[36px] !px-4 text-[11px]"
+                >
                   Connect accounts
                 </Button>
               </Link>
@@ -227,10 +234,18 @@ export function SetupChat({
       </div>
 
       <div className="flex-grow flex flex-col bg-vigil-bgPri h-full relative">
-        <div className="h-[60px] flex-shrink-0 border-b border-vigil-borderSubtle flex items-center justify-center">
+        <div className="h-[60px] flex-shrink-0 border-b border-vigil-borderSubtle flex items-center justify-between px-4 sm:px-6">
+          <Link href="/dashboard" className="inline-flex">
+            <Button variant="secondary" className="!h-[34px] !px-4 text-[11px]">
+              Back to Dashboard
+            </Button>
+          </Link>
+
           <span className="text-[12px] font-sans uppercase tracking-[0.12em] text-vigil-textPri">
             VIGIL SETUP
           </span>
+
+          <div className="w-[130px]" aria-hidden="true" />
         </div>
 
         <div className="flex-grow overflow-y-auto p-4 sm:p-8 relative">
@@ -254,10 +269,11 @@ export function SetupChat({
                   className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"} fade-up delay-100`}
                 >
                   <div
-                    className={`p-4 max-w-[85%] ${m.role === "user"
-                      ? "bg-vigil-bgTer text-vigil-textPri rounded-[4px_4px_0_4px]"
-                      : "bg-vigil-bgSec border border-vigil-borderSubtle text-vigil-textPri rounded-[4px_4px_4px_0]"
-                      }`}
+                    className={`p-4 max-w-[85%] ${
+                      m.role === "user"
+                        ? "bg-vigil-bgTer text-vigil-textPri rounded-[4px_4px_0_4px]"
+                        : "bg-vigil-bgSec border border-vigil-borderSubtle text-vigil-textPri rounded-[4px_4px_4px_0]"
+                    }`}
                   >
                     {text ? (
                       <p className="text-[15px] font-light leading-relaxed whitespace-pre-wrap break-words min-w-0">
@@ -301,7 +317,9 @@ export function SetupChat({
             {setupConfirmed && (
               <div className="text-center py-4">
                 <span className="inline-block px-4 py-2 rounded-[2px] bg-vigil-statusWatchBg text-vigil-statusWatch border border-vigil-statusWatchBorder text-sm font-medium">
-                  Plan saved. Redirecting to dashboard...
+                  {redirectOnCompletion
+                    ? "Plan saved. Redirecting to dashboard..."
+                    : "Plan saved. Continue adding instructions or return to dashboard when ready."}
                 </span>
               </div>
             )}
@@ -309,7 +327,10 @@ export function SetupChat({
             {(hasSavedAction || setupConfirmed) && (
               <div className="text-center">
                 <Link href="/dashboard" className="inline-flex">
-                  <Button variant="secondary" className="!h-[40px] !px-5 text-[12px]">
+                  <Button
+                    variant="secondary"
+                    className="!h-[40px] !px-5 text-[12px]"
+                  >
                     Go To Dashboard
                   </Button>
                 </Link>
@@ -348,14 +369,14 @@ export function SetupChat({
                   }
                 }}
                 placeholder="Describe your wishes..."
-                disabled={isLoading || setupConfirmed}
+                disabled={isLoading || shouldLockComposer}
                 className="flex-grow bg-vigil-bgSec border border-vigil-borderSubtle rounded-[2px] text-vigil-textPri text-[15px] p-4 min-h-[52px] max-h-[160px] focus:outline-none focus:border-vigil-borderActive transition-colors resize-none placeholder:text-vigil-textTer overflow-y-auto disabled:opacity-50"
                 rows={1}
               />
               <Button
                 type="submit"
                 variant="primary"
-                disabled={isLoading || !input.trim() || setupConfirmed}
+                disabled={isLoading || !input.trim() || shouldLockComposer}
                 className="w-[52px] !px-0 flex-shrink-0"
               >
                 ↑

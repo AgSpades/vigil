@@ -2,14 +2,22 @@ import { auth0 } from "@/lib/auth0";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { LandingContent } from "@/components/LandingContent";
-import { hasCompletedOnboarding } from "@/lib/db/users";
+import { getConnectedServices, hasCompletedOnboarding } from "@/lib/db/users";
 
 export default async function Home() {
   const session = await auth0.getSession();
 
   if (session) {
-    const isOnboardingComplete = await hasCompletedOnboarding(session.user.sub);
-    redirect(isOnboardingComplete ? "/dashboard" : "/onboarding/connect");
+    const [isOnboardingComplete, connectedServices] = await Promise.all([
+      hasCompletedOnboarding(session.user.sub),
+      getConnectedServices(session.user.sub),
+    ]);
+
+    if (isOnboardingComplete || connectedServices.length > 0) {
+      redirect("/dashboard");
+    }
+
+    redirect("/onboarding/connect");
   }
 
   return (

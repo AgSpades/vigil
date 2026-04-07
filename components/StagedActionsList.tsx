@@ -76,6 +76,10 @@ export function StagedActionsList({
     );
 
     useEffect(() => {
+        setActions(initialActions);
+    }, [initialActions]);
+
+    useEffect(() => {
         let cancelled = false;
 
         async function refreshActions() {
@@ -100,6 +104,8 @@ export function StagedActionsList({
                 // Ignore transient polling failures.
             }
         }
+
+        void refreshActions();
 
         const interval = setInterval(() => {
             void refreshActions();
