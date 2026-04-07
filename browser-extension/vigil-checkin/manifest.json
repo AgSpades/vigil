@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Vigil Check-in Reminder",
+  "version": "1.0.0",
+  "description": "Lightweight reminder that opens Vigil check-in in your dashboard.",
+  "permissions": ["alarms", "notifications", "storage", "tabs"],
+  "host_permissions": ["https://*/*", "http://localhost:3000/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html"
+}
