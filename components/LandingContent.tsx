@@ -557,6 +557,15 @@ export function LandingContent({ authenticated }: { authenticated: boolean }) {
             </Link>
           </p>
         )}
+        <div className="mt-6 flex items-center gap-4 text-[11px] uppercase tracking-[0.12em] text-vigil-textTer font-sans">
+          <Link href="/privacy" className="hover:text-vigil-textPri transition-colors">
+            Privacy
+          </Link>
+          <span className="text-vigil-borderSubtle">|</span>
+          <Link href="/tos" className="hover:text-vigil-textPri transition-colors">
+            Terms
+          </Link>
+        </div>
       </motion.section>
     </>
   );
