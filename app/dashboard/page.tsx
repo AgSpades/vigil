@@ -12,7 +12,6 @@ import { getLastHeartbeat } from "@/lib/db/heartbeats";
 import { getStagedActions } from "@/lib/db/staged-actions";
 import {
   ensureVigilConfig,
-  getUserCheckinSecurity,
   getVigilConfig,
   upsertUser,
 } from "@/lib/db/users";
@@ -38,10 +37,9 @@ export default async function DashboardPage() {
   await upsertUser(session.user.sub, session.user.email ?? "");
   await ensureVigilConfig(session.user.sub);
 
-  const [config, checkinSecurity, lastHeartbeat, actions, auditLogs, accounts] =
+  const [config, lastHeartbeat, actions, auditLogs, accounts] =
     await Promise.all([
       getVigilConfig(session.user.sub),
-      getUserCheckinSecurity(session.user.sub),
       getLastHeartbeat(session.user.sub),
       getStagedActions(session.user.sub, session.user.email),
       getAuditLogs(session.user.sub, 25),
@@ -52,7 +50,7 @@ export default async function DashboardPage() {
       }),
     ]);
 
-  const lastSeen = checkinSecurity?.lastSeenAt ?? lastHeartbeat;
+  const lastSeen = lastHeartbeat;
 
   const statusKey = config?.cancelledAt
     ? "down"

@@ -1,78 +1,74 @@
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-provider = "postgresql"
+  provider = "postgresql"
 }
 
 model User {
-id String @id
-email String
-  pinHash       String?
-  lastSeenAt    DateTime?
-  failedAttempts Int             @default(0)
-  lockUntil     DateTime?
-createdAt DateTime @default(now())
-auditLogs AuditLog[]
-contacts ContactContext[]
-heartbeats Heartbeat[]
-stagedActions StagedAction[]
-config VigilConfig?
+  id            String           @id
+  email         String
+  createdAt     DateTime         @default(now())
+  auditLogs     AuditLog[]
+  contacts      ContactContext[]
+  heartbeats    Heartbeat[]
+  stagedActions StagedAction[]
+  config        VigilConfig?
 }
 
 model Heartbeat {
-id Int @id @default(autoincrement())
-userId String
-checkedInAt DateTime @default(now())
-user User @relation(fields: [userId], references: [id])
+  id          Int      @id @default(autoincrement())
+  userId      String
+  checkedInAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
 
-@@index([userId, checkedInAt(sort: Desc)])
+  @@index([userId, checkedInAt(sort: Desc)])
 }
 
 model VigilConfig {
-userId String @id
-silenceDays Int @default(7)
-graceHours Int @default(24)
-demoMode Boolean @default(false)
-cibaSentAt DateTime?
-activatedAt DateTime?
-cancelledAt DateTime?
-user User @relation(fields: [userId], references: [id])
+  userId      String    @id
+  silenceDays Int       @default(7)
+  graceHours  Int       @default(24)
+  demoMode    Boolean   @default(false)
+  cibaSentAt  DateTime?
+  activatedAt DateTime?
+  cancelledAt DateTime?
+  user        User      @relation(fields: [userId], references: [id])
 }
 
 model StagedAction {
-id Int @id @default(autoincrement())
-userId String
-triggerDays Int
-actionType String
-actionConfig Json
-executedAt DateTime?
-status String @default("pending")
-user User @relation(fields: [userId], references: [id])
+  id           Int       @id @default(autoincrement())
+  userId       String
+  triggerDays  Int
+  actionType   String
+  actionConfig Json
+  executedAt   DateTime?
+  status       String    @default("pending")
+  user         User      @relation(fields: [userId], references: [id])
 
-@@index([userId, status])
+  @@index([userId, status])
 }
 
 model ContactContext {
-id Int @id @default(autoincrement())
-userId String
-contactName String
-contactEmail String?
-relationship String
-context String
-user User @relation(fields: [userId], references: [id])
+  id           Int     @id @default(autoincrement())
+  userId       String
+  contactName  String
+  contactEmail String?
+  relationship String
+  context      String
+  user         User    @relation(fields: [userId], references: [id])
 
-@@index([userId])
+  @@index([userId])
 }
 
 model AuditLog {
-id Int @id @default(autoincrement())
-userId String
-eventType String
-detail Json?
-occurredAt DateTime @default(now())
-user User @relation(fields: [userId], references: [id])
+  id         Int      @id @default(autoincrement())
+  userId     String
+  eventType  String
+  detail     Json?
+  occurredAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
 
-@@index([userId, occurredAt(sort: Desc)])
+  @@index([userId, occurredAt(sort: Desc)])
 }

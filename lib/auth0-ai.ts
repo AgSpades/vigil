@@ -16,11 +16,13 @@ export const GOOGLE_DRIVE_SCOPES = [
 ];
 export const GITHUB_SCOPES = ["repo"];
 
+type VaultWrappedTool = object;
+
 /**
  * Helper factory to wrap tools with Google (Gmail) Token Vault access.
  * Keep this lazy to avoid requiring Auth0 env vars during build-time module evaluation.
  */
-export function withGmail(tool: any) {
+export function withGmail<T extends VaultWrappedTool>(tool: T): T {
   return auth0AI.withTokenVault(
     {
       connection: "google-oauth2",
@@ -38,7 +40,7 @@ export function withGmail(tool: any) {
  * Helper factory to wrap tools with GitHub Token Vault access.
  * Keep this lazy to avoid requiring Auth0 env vars during build-time module evaluation.
  */
-export function withGitHub(tool: any) {
+export function withGitHub<T extends VaultWrappedTool>(tool: T): T {
   return auth0AI.withTokenVault(
     {
       connection: "github",

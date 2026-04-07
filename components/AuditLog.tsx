@@ -11,9 +11,6 @@ type AuditEntry = {
 
 const EVENT_LABELS: Record<string, string> = {
   heartbeat: "Check-in",
-  checkin_pin_set: "Check-in PIN set",
-  checkin_verified: "Check-in verified",
-  checkin_failed: "Check-in failed",
   ciba_sent: "Alert sent to phone",
   ciba_approved: "Alert approved",
   ciba_denied: "Alert denied — standing down",
@@ -25,9 +22,6 @@ const EVENT_LABELS: Record<string, string> = {
 
 const EVENT_COLORS: Record<string, string> = {
   heartbeat: "text-emerald-400",
-  checkin_pin_set: "text-blue-400",
-  checkin_verified: "text-emerald-400",
-  checkin_failed: "text-rose-400",
   ciba_sent: "text-amber-400",
   ciba_approved: "text-blue-400",
   ciba_denied: "text-rose-400",

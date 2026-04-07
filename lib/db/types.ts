@@ -1,10 +1,6 @@
 export interface User {
   id: string;
   email: string;
-  pinHash: string | null;
-  lastSeenAt: Date | null;
-  failedAttempts: number;
-  lockUntil: Date | null;
   createdAt: Date;
 }
 

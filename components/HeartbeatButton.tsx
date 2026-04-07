@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function HeartbeatButton() {
   const router = useRouter();
@@ -10,7 +11,6 @@ export function HeartbeatButton() {
 
   async function handleCheckIn() {
     setStatus("loading");
-    setErrorText(null);
 
     try {
       const res = await fetch("/api/heartbeat", {
@@ -26,9 +26,6 @@ export function HeartbeatButton() {
 
       setStatus("done");
       router.refresh();
-      }
-
-      setStatus("done");
       setTimeout(() => setStatus("idle"), 3000);
     } catch {
       setStatus("error");

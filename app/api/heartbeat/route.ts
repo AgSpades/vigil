@@ -1,16 +1,7 @@
 import { auth0 } from "@/lib/auth0";
 import { logAudit } from "@/lib/db/audit";
-import { logAudit } from "@/lib/db/audit";
 import { recordHeartbeat } from "@/lib/db/heartbeats";
-import {
-  ensureVigilConfig,
-  isSecureCheckinSchemaReady,
-  markCheckinSuccess,
-  upsertUser,
-} from "@/lib/db/users";
-import { recordHeartbeat } from "@/lib/db/heartbeats";
-import { logAudit } from "@/lib/db/audit";
-import { upsertUser, ensureVigilConfig, resetVigilState } from "@/lib/db/users";
+import { ensureVigilConfig, upsertUser } from "@/lib/db/users";
 
 export async function POST(request: Request) {
   const session = await auth0.getSession();
@@ -24,11 +15,6 @@ export async function POST(request: Request) {
   await upsertUser(userId, email);
   await ensureVigilConfig(userId);
   await recordHeartbeat(userId);
-
-  const secureSchemaReady = await isSecureCheckinSchemaReady();
-  if (secureSchemaReady) {
-    await markCheckinSuccess(userId);
-  }
 
   await logAudit(userId, "heartbeat", {
     source,
