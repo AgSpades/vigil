@@ -8,6 +8,7 @@ export interface VigilConfig {
   userId: string;
   silenceDays: number;
   graceHours: number;
+  demoMode: boolean;
   cibaSentAt: Date | null;
   activatedAt: Date | null;
   cancelledAt: Date | null;

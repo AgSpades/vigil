@@ -124,18 +124,52 @@ async function pollCibaDecision(
   return "unknown";
 }
 
-export async function checkHeartbeat(userId: string) {
+export async function checkHeartbeat(
+  userId: string,
+  { demoRefreshToken }: { demoRefreshToken?: string } = {},
+) {
   const config = await getVigilConfig(userId);
 
   // Skip users who are already activated or have cancelled
   if (!config || config.activatedAt || config.cancelledAt) return;
 
   const lastBeat = await getLastHeartbeat(userId);
-  // lastBeat will be null if the user has never checked in — treat that as silenceDays = Infinity, which will trigger the CIBA push immediately. Otherwise, calculate silenceDays as normal.
-  if (!lastBeat) return;
+  if (!lastBeat) {
+    if (config.demoMode) {
+      await logAudit(userId, "demo_activation_skipped", {
+        reason: "no_heartbeat",
+      });
+    }
+    return;
+  }
 
   const elapsedMinutes = (Date.now() - lastBeat.getTime()) / 60_000;
   const silenceDays = elapsedMinutes / 1_440;
+
+  // Demo mode: execute as soon as an instruction's trigger timing is due.
+  // This intentionally bypasses CIBA + grace so local testing is immediate.
+  if (config.demoMode) {
+    if (!demoRefreshToken) {
+      await logAudit(userId, "demo_activation_skipped", {
+        reason: "missing_refresh_token",
+        elapsedMinutes,
+        silenceDays,
+      });
+      return;
+    }
+
+    await logAudit(userId, "demo_activation_attempt", {
+      elapsedMinutes,
+      silenceDays,
+    });
+    // isDemo=true skips markActivated so repeated test runs work.
+    // Keep the real elapsed time so only actions whose trigger has passed execute.
+    await triggerActivation(userId, elapsedMinutes, {
+      isDemo: true,
+      refreshToken: demoRefreshToken,
+    });
+    return;
+  }
 
   // Still within threshold — nothing to do
   if (elapsedMinutes < config.silenceDays * 1_440) return;

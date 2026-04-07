@@ -1,6 +1,3 @@
-import { generateText, tool, stepCountIs } from "ai";
-import { model } from "../groq";
-import { z } from "zod";
 import {
   getPendingStagedActions,
   markActionExecuted,
@@ -9,244 +6,298 @@ import {
 import { getContactContext } from "../db/contact-context";
 import { logAudit } from "../db/audit";
 import { markActivated } from "../db/users";
-import {
-  auth0AI,
-  getAccessTokenFromTokenVault,
-  GOOGLE_GMAIL_SCOPES,
-  GOOGLE_DRIVE_SCOPES,
-  GITHUB_SCOPES,
-} from "../auth0-ai";
-import { auth0 } from "../auth0";
+import { GITHUB_SCOPES, GOOGLE_GMAIL_SCOPES } from "../auth0-ai";
+import type { StagedAction } from "../db/types";
 
-async function getRefreshToken(): Promise<string | undefined> {
-  const session = await auth0.getSession();
-  return session?.tokenSet?.refreshToken ?? undefined;
+type ActionConfig = Record<string, unknown>;
+
+async function exchangeTokenVaultAccessToken(params: {
+  refreshToken?: string;
+  connection: string;
+  scopes: string[];
+}): Promise<string> {
+  if (!params.refreshToken) {
+    throw new Error("Missing refresh token for Token Vault exchange");
+  }
+
+  const domain = process.env.AUTH0_DOMAIN;
+  const clientId = process.env.AUTH0_CLIENT_ID;
+  const clientSecret = process.env.AUTH0_CLIENT_SECRET;
+
+  if (!domain || !clientId || !clientSecret) {
+    throw new Error("Missing Auth0 environment variables for Token Vault exchange");
+  }
+
+  const response = await fetch(`https://${domain}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type:
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
+      client_id: clientId,
+      client_secret: clientSecret,
+      subject_token_type: "urn:ietf:params:oauth:token-type:refresh_token",
+      subject_token: params.refreshToken,
+      connection: params.connection,
+      requested_token_type:
+        "http://auth0.com/oauth/token-type/federated-connection-access-token",
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Token Vault exchange failed: ${response.status} ${body}`);
+  }
+
+  const payload = (await response.json()) as {
+    access_token?: string;
+    scope?: string;
+  };
+
+  const grantedScopes = (payload.scope ?? "").replace(/,/g, " ").split(" ");
+  const requiredScopes = params.scopes;
+  const actuallyMissingScopes = requiredScopes.filter(
+    (scope) => !grantedScopes.includes(scope),
+  );
+
+  if (!payload.access_token) {
+    throw new Error("Token Vault exchange did not return an access token");
+  }
+
+  if (actuallyMissingScopes.length > 0) {
+    throw new Error(
+      `Token Vault exchange missing scopes: ${actuallyMissingScopes.join(", ")}`,
+    );
+  }
+
+  return payload.access_token;
+}
+
+function buildDeterministicEmailBody(
+  actionConfig: ActionConfig,
+  contacts: Awaited<ReturnType<typeof getContactContext>>,
+): string {
+  if (typeof actionConfig.body === "string" && actionConfig.body.trim().length > 0) {
+    return actionConfig.body;
+  }
+
+  const targetEmail =
+    typeof actionConfig.to === "string" ? actionConfig.to.toLowerCase() : null;
+  const matchingContact = targetEmail
+    ? contacts.find(
+        (contact) => contact.contactEmail?.toLowerCase() === targetEmail,
+      )
+    : null;
+
+  if (matchingContact?.context) {
+    return matchingContact.context;
+  }
+
+  return "This message was sent by Vigil based on a pre-configured instruction.";
+}
+
+function buildDeterministicEmailSubject(actionConfig: ActionConfig): string {
+  if (
+    typeof actionConfig.subject === "string" &&
+    actionConfig.subject.trim().length > 0
+  ) {
+    return actionConfig.subject;
+  }
+
+  return "A message from Vigil";
+}
+
+async function executeGmailAction(params: {
+  userId: string;
+  action: StagedAction;
+  contacts: Awaited<ReturnType<typeof getContactContext>>;
+  refreshToken?: string;
+}): Promise<void> {
+  const actionConfig =
+    params.action.actionConfig && typeof params.action.actionConfig === "object"
+      ? (params.action.actionConfig as ActionConfig)
+      : {};
+
+  const to =
+    typeof actionConfig.to === "string" ? actionConfig.to.trim() : undefined;
+
+  if (!to) {
+    throw new Error("gmail_send action is missing a recipient email");
+  }
+
+  const accessToken = await exchangeTokenVaultAccessToken({
+    refreshToken: params.refreshToken,
+    connection: process.env.GOOGLE_CONNECTION_NAME!,
+    scopes: GOOGLE_GMAIL_SCOPES,
+  });
+
+  const subject = buildDeterministicEmailSubject(actionConfig);
+  const body = buildDeterministicEmailBody(actionConfig, params.contacts);
+  const raw = Buffer.from(
+    `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`,
+    "utf8",
+  )
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
+  const response = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gmail error: ${response.status} ${errorBody}`);
+  }
+
+  await markActionExecuted(params.action.id);
+  await logAudit(params.userId, "action_executed", {
+    actionId: params.action.id,
+    actionType: params.action.actionType,
+    to,
+    subject,
+  });
+}
+
+async function executeGithubTransferAction(params: {
+  userId: string;
+  action: StagedAction;
+  refreshToken?: string;
+}): Promise<void> {
+  const actionConfig =
+    params.action.actionConfig && typeof params.action.actionConfig === "object"
+      ? (params.action.actionConfig as ActionConfig)
+      : {};
+
+  const repo =
+    typeof actionConfig.repo === "string" ? actionConfig.repo.trim() : undefined;
+  const newOwner =
+    typeof actionConfig.newOwner === "string"
+      ? actionConfig.newOwner.trim()
+      : typeof actionConfig.new_owner === "string"
+        ? actionConfig.new_owner.trim()
+        : undefined;
+
+  if (!repo) {
+    throw new Error("github_transfer action is missing a repo");
+  }
+
+  if (!newOwner) {
+    throw new Error("github_transfer action is missing a new owner");
+  }
+
+  const accessToken = await exchangeTokenVaultAccessToken({
+    refreshToken: params.refreshToken,
+    connection: process.env.GITHUB_CONNECTION_NAME!,
+    scopes: GITHUB_SCOPES,
+  });
+
+  const response = await fetch(`https://api.github.com/repos/${repo}/transfer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    body: JSON.stringify({ new_owner: newOwner }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`GitHub transfer failed: ${response.status} ${errorBody}`);
+  }
+
+  await markActionExecuted(params.action.id);
+  await logAudit(params.userId, "action_executed", {
+    actionId: params.action.id,
+    actionType: params.action.actionType,
+    repo,
+    newOwner,
+  });
+}
+
+async function executeDeterministicAction(params: {
+  userId: string;
+  action: StagedAction;
+  contacts: Awaited<ReturnType<typeof getContactContext>>;
+  refreshToken?: string;
+}): Promise<void> {
+  switch (params.action.actionType) {
+    case "gmail_send":
+      await executeGmailAction(params);
+      return;
+    case "github_transfer":
+      await executeGithubTransferAction(params);
+      return;
+    default:
+      throw new Error(
+        `Deterministic execution is not implemented for ${params.action.actionType}`,
+      );
+  }
 }
 
 export async function triggerActivation(
   userId: string,
   elapsedMinutes: number,
+  {
+    isDemo = false,
+    refreshToken,
+  }: { isDemo?: boolean; refreshToken?: string } = {},
 ) {
   const actions = await getPendingStagedActions(userId, elapsedMinutes);
   const contacts = await getContactContext(userId);
 
   if (actions.length === 0) return;
 
-  await markActivated(userId);
+  const getRefreshToken = async () => refreshToken;
 
-  const actionsDescription = actions
-    .map(
-      (a: (typeof actions)[number]) =>
-        `- Action ID ${a.id}: ${a.actionType} | config: ${JSON.stringify(a.actionConfig)}`,
-    )
-    .join("\n");
+  // In demo mode, don't permanently mark as activated so the user can test again.
+  if (!isDemo) {
+    await markActivated(userId);
+  }
 
-  const contactsDescription = contacts
-    .map(
-      (c: (typeof contacts)[number]) =>
-        `- ${c.contactName} (${c.relationship}): ${c.context}`,
-    )
-    .join("\n");
+  let executedCount = 0;
 
-  const gmailTool = auth0AI.withTokenVault(
-    {
-      connection: process.env.GOOGLE_CONNECTION_NAME!,
-      scopes: GOOGLE_GMAIL_SCOPES,
-      refreshToken: getRefreshToken,
-    },
-    tool({
-      description:
-        "Draft and send an email via Gmail using Token Vault credentials.",
-      inputSchema: z.object({
-        actionId: z.number(),
-        to: z.string(),
-        subject: z.string(),
-        body: z
-          .string()
-          .describe("Fully drafted email body — personalized, not a template"),
-      }),
-      execute: async ({ actionId, to, subject, body }) => {
-        try {
-          const accessToken = getAccessTokenFromTokenVault();
-          const raw = btoa(
-            `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain\r\n\r\n${body}`,
-          )
-            .replace(/\+/g, "-")
-            .replace(/\//g, "_");
+  for (const action of actions) {
+    try {
+      await executeDeterministicAction({
+        userId,
+        action,
+        contacts,
+        refreshToken: await getRefreshToken(),
+      });
+      executedCount += 1;
+    } catch (err) {
+      await markActionFailed(action.id);
+      await logAudit(userId, "action_failed", {
+        actionId: action.id,
+        actionType: action.actionType,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
-          const res = await fetch(
-            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ raw }),
-            },
-          );
-          if (!res.ok) throw new Error(`Gmail error: ${res.status}`);
-          await markActionExecuted(actionId);
-          await logAudit(userId, "action_executed", { actionId, to });
-          return { ok: true };
-        } catch (err) {
-          await markActionFailed(actionId);
-          await logAudit(userId, "action_failed", {
-            actionId,
-            error: String(err),
-          });
-          return { ok: false, error: String(err) };
-        }
-      },
-    }),
-  );
-
-  const githubTool = auth0AI.withTokenVault(
-    {
-      connection: process.env.GITHUB_CONNECTION_NAME!,
-      scopes: GITHUB_SCOPES,
-      refreshToken: getRefreshToken,
-    },
-    tool({
-      description:
-        "Transfer a GitHub repository to a new owner via Token Vault credentials.",
-      inputSchema: z.object({
-        actionId: z.number(),
-        repo: z.string().describe("owner/repo-name"),
-        newOwner: z.string().describe("GitHub username of heir"),
-      }),
-      execute: async ({ actionId, repo, newOwner }) => {
-        try {
-          const accessToken = getAccessTokenFromTokenVault();
-          const res = await fetch(
-            `https://api.github.com/repos/${repo}/transfer`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                Accept: "application/vnd.github+json",
-              },
-              body: JSON.stringify({ new_owner: newOwner }),
-            },
-          );
-          if (!res.ok) throw new Error(`GitHub error: ${res.status}`);
-          await markActionExecuted(actionId);
-          await logAudit(userId, "action_executed", {
-            actionId,
-            repo,
-            newOwner,
-          });
-          return { ok: true };
-        } catch (err) {
-          await markActionFailed(actionId);
-          await logAudit(userId, "action_failed", {
-            actionId,
-            error: String(err),
-          });
-          return { ok: false, error: String(err) };
-        }
-      },
-    }),
-  );
-
-  const driveTool = auth0AI.withTokenVault(
-    {
-      connection: process.env.GOOGLE_CONNECTION_NAME!,
-      scopes: GOOGLE_DRIVE_SCOPES,
-      refreshToken: getRefreshToken,
-    },
-    tool({
-      description:
-        "Archive Google Drive files to a shared folder via Token Vault credentials.",
-      inputSchema: z.object({
-        actionId: z.number(),
-        targetEmail: z
-          .string()
-          .describe("Email to share the archive folder with"),
-      }),
-      execute: async ({ actionId, targetEmail }) => {
-        try {
-          const accessToken = getAccessTokenFromTokenVault();
-
-          const folderRes = await fetch(
-            "https://www.googleapis.com/drive/v3/files",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                name: "Vigil Archive",
-                mimeType: "application/vnd.google-apps.folder",
-              }),
-            },
-          );
-          if (!folderRes.ok)
-            throw new Error(`Drive folder error: ${folderRes.status}`);
-          const folder = (await folderRes.json()) as { id: string };
-
-          await fetch(
-            `https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                role: "reader",
-                type: "user",
-                emailAddress: targetEmail,
-              }),
-            },
-          );
-
-          await markActionExecuted(actionId);
-          await logAudit(userId, "action_executed", {
-            actionId,
-            folderId: folder.id,
-          });
-          return { ok: true, folderId: folder.id };
-        } catch (err) {
-          await markActionFailed(actionId);
-          await logAudit(userId, "action_failed", {
-            actionId,
-            error: String(err),
-          });
-          return { ok: false, error: String(err) };
-        }
-      },
-    }),
-  );
-
-  await generateText({
-    model,
-    system: `
-You are Vigil's activation agent. The user has been silent for ${Math.round(elapsedMinutes)} minutes (${(elapsedMinutes / 60).toFixed(1)} hours).
-You must now execute their pre-configured wishes in order.
-
-For Gmail actions: draft a warm, personalized farewell message using the
-relationship context provided. Match the tone the user described. Do not
-use generic templates.
-
-Execute actions in order of triggerMinutes (ascending). If one fails, log it
-and continue with the rest. Never stop the entire sequence for one failure.
-    `,
-    prompt: `
-Pending actions:
-${actionsDescription}
-
-Contact relationship context:
-${contactsDescription || "No contact context provided."}
-
-Execute each action now using the available tools.
-    `,
-    tools: {
-      sendGmail: gmailTool,
-      transferGithubRepo: githubTool,
-      archiveDrive: driveTool,
-    },
-    stopWhen: stepCountIs(20),
+  await logAudit(userId, "activation_agent_completed", {
+    mode: "deterministic",
+    executedCount,
+    attemptedCount: actions.length,
   });
+
+  const remainingActions = await getPendingStagedActions(userId, elapsedMinutes);
+  if (remainingActions.length > 0) {
+    await logAudit(userId, "activation_noop", {
+      pendingActionIds: remainingActions.map((action) => action.id),
+      mode: "deterministic",
+    });
+  }
 }

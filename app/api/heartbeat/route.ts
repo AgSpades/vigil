@@ -1,7 +1,7 @@
 import { auth0 } from "@/lib/auth0";
 import { recordHeartbeat } from "@/lib/db/heartbeats";
 import { logAudit } from "@/lib/db/audit";
-import { upsertUser, ensureVigilConfig } from "@/lib/db/users";
+import { upsertUser, ensureVigilConfig, resetVigilState } from "@/lib/db/users";
 
 export async function POST() {
   const session = await auth0.getSession();
@@ -13,6 +13,7 @@ export async function POST() {
 
   await upsertUser(userId, email);
   await ensureVigilConfig(userId);
+  await resetVigilState(userId);
   await recordHeartbeat(userId);
   await logAudit(userId, "heartbeat", {});
 

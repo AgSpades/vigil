@@ -12,10 +12,19 @@ export async function recordHeartbeat(userId: string): Promise<Heartbeat> {
 
 export async function getLastHeartbeat(userId: string): Promise<Date | null> {
   const rows = await sql`
-    SELECT "checkedInAt" FROM "Heartbeat"
+    SELECT FLOOR(EXTRACT(EPOCH FROM ("checkedInAt" AT TIME ZONE 'UTC')) * 1000)::bigint AS "checkedInAtMs"
+    FROM "Heartbeat"
     WHERE "userId" = ${userId}
     ORDER BY "checkedInAt" DESC
     LIMIT 1
   `;
-  return rows.length > 0 ? (rows[0] as Heartbeat).checkedInAt : null;
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const value = (rows[0] as { checkedInAtMs: string | number }).checkedInAtMs;
+  const epochMs =
+    typeof value === "string" ? Number.parseInt(value, 10) : value;
+
+  return Number.isFinite(epochMs) ? new Date(epochMs) : null;
 }
