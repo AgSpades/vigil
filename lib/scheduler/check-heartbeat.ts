@@ -1,7 +1,8 @@
 import { getLastHeartbeat } from "../db/heartbeats";
-import { getVigilConfig, updateCibaSentAt } from "../db/users";
-import { logAudit } from "../db/audit";
+import { getVigilConfig, markCancelled, updateCibaSentAt } from "../db/users";
+import { getLatestCibaAuthRequestId, logAudit } from "../db/audit";
 import { triggerActivation } from "../agent/executor";
+import { cancelAllActions } from "../db/staged-actions";
 
 /**
  * Sends a CIBA push to the user via Auth0 Management API.
@@ -57,7 +58,70 @@ async function sendCIBAPush(userId: string, silenceDays: number) {
   if (!cibaRes.ok) {
     const body = await cibaRes.text();
     console.error("CIBA push failed:", body);
+    return null;
   }
+
+  const payload = (await cibaRes.json()) as {
+    auth_req_id?: string;
+    expires_in?: number;
+    interval?: number;
+  };
+
+  if (!payload.auth_req_id) {
+    return null;
+  }
+
+  return {
+    authReqId: payload.auth_req_id,
+    expiresIn: payload.expires_in ?? null,
+    interval: payload.interval ?? null,
+  };
+}
+
+async function pollCibaDecision(
+  authReqId: string,
+): Promise<"approved" | "denied" | "pending" | "unknown"> {
+  const domain = process.env.AUTH0_DOMAIN!;
+  const clientId = process.env.AUTH0_CLIENT_ID!;
+  const clientSecret = process.env.AUTH0_CLIENT_SECRET!;
+  const audience = process.env.AUTH0_AUDIENCE!;
+
+  const tokenRes = await fetch(`https://${domain}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:openid:params:grant-type:ciba",
+      client_id: clientId,
+      client_secret: clientSecret,
+      auth_req_id: authReqId,
+      audience,
+    }),
+  });
+
+  if (tokenRes.ok) {
+    return "approved";
+  }
+
+  const payload = (await tokenRes.json().catch(() => ({}))) as {
+    error?: string;
+  };
+
+  if (
+    payload.error === "authorization_pending" ||
+    payload.error === "slow_down"
+  ) {
+    return "pending";
+  }
+
+  if (payload.error === "access_denied") {
+    return "denied";
+  }
+
+  if (payload.error === "expired_token") {
+    return "pending";
+  }
+
+  return "unknown";
 }
 
 export async function checkHeartbeat(userId: string) {
@@ -78,10 +142,42 @@ export async function checkHeartbeat(userId: string) {
 
   if (!config.cibaSentAt) {
     // First time crossing threshold — send CIBA push and record timestamp
-    await sendCIBAPush(userId, silenceDays);
+    const cibaRequest = await sendCIBAPush(userId, silenceDays);
     await updateCibaSentAt(userId);
-    await logAudit(userId, "ciba_sent", { silenceDays });
+    await logAudit(userId, "ciba_sent", {
+      silenceDays,
+      authReqId: cibaRequest?.authReqId,
+      expiresInSeconds: cibaRequest?.expiresIn,
+      pollIntervalSeconds: cibaRequest?.interval,
+    });
     return;
+  }
+
+  // Poll CIBA decision before grace timeout to respect explicit user deny/approve.
+  const authReqId = await getLatestCibaAuthRequestId(userId);
+  if (authReqId) {
+    const decision = await pollCibaDecision(authReqId);
+
+    if (decision === "denied") {
+      await markCancelled(userId);
+      const cancelledCount = await cancelAllActions(userId);
+      await logAudit(userId, "ciba_denied", {
+        cancelledPendingActions: cancelledCount,
+      });
+      await logAudit(userId, "agent_cancelled", {
+        reason: "user_denied_ciba",
+        cancelledPendingActions: cancelledCount,
+      });
+      return;
+    }
+
+    if (decision === "approved") {
+      await logAudit(userId, "ciba_approved", {
+        elapsedMinutes,
+      });
+      await triggerActivation(userId, elapsedMinutes);
+      return;
+    }
   }
 
   // CIBA was already sent — check if grace window has elapsed

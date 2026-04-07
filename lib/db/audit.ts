@@ -26,3 +26,21 @@ export async function getAuditLogs(
   `;
   return rows as AuditLog[];
 }
+
+export async function getLatestCibaAuthRequestId(
+  userId: string,
+): Promise<string | null> {
+  const rows = await sql`
+    SELECT ("detail"->>'authReqId') AS "authReqId"
+    FROM "AuditLog"
+    WHERE "userId" = ${userId}
+      AND "eventType" = 'ciba_sent'
+      AND "detail" ? 'authReqId'
+    ORDER BY "occurredAt" DESC
+    LIMIT 1
+  `;
+
+  if (rows.length === 0) return null;
+  const value = (rows[0] as { authReqId: string | null }).authReqId;
+  return value && value.length > 0 ? value : null;
+}
