@@ -536,27 +536,43 @@ export function LandingContent({ authenticated }: { authenticated: boolean }) {
         <h2 className="font-serif text-[40px] md:text-[56px] font-light text-vigil-textPri mb-10">
           Begin your vigil.
         </h2>
-        <Link
-          href={authenticated ? "/dashboard" : "/auth/login"}
-          className="mb-6 inline-block"
-        >
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button variant="primary" className="flex items-center gap-2">
-              Get started <ChevronRight className="w-4 h-4" />
-            </Button>
-          </motion.div>
-        </Link>
+        {authenticated ? (
+          <Link href="/dashboard" className="mb-6 inline-block">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button variant="primary" className="flex items-center gap-2">
+                Get started <ChevronRight className="w-4 h-4" />
+              </Button>
+            </motion.div>
+          </Link>
+        ) : (
+          <a href="/auth/login" className="mb-6 inline-block">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button variant="primary" className="flex items-center gap-2">
+                Get started <ChevronRight className="w-4 h-4" />
+              </Button>
+            </motion.div>
+          </a>
+        )}
         {!authenticated && (
           <p className="text-[12px] text-vigil-textTer font-sans">
             Already have an account?{" "}
-            <Link
+            <a
               href="/auth/login"
               className="hover:text-vigil-textPri transition-colors underline underline-offset-4 decoration-vigil-borderSubtle"
             >
               Sign in.
-            </Link>
+            </a>
           </p>
         )}
+        <div className="mt-6 flex items-center gap-4 text-[11px] uppercase tracking-[0.12em] text-vigil-textTer font-sans">
+          <Link href="/privacy" className="hover:text-vigil-textPri transition-colors">
+            Privacy
+          </Link>
+          <span className="text-vigil-borderSubtle">|</span>
+          <Link href="/tos" className="hover:text-vigil-textPri transition-colors">
+            Terms
+          </Link>
+        </div>
       </motion.section>
     </>
   );
