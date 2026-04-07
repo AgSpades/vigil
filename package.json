@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "build:cf": "opennextjs-cloudflare build",
     "start": "next start",
     "lint": "eslint",
@@ -18,14 +18,11 @@
     "@ai-sdk/react": "^3.0.147",
     "@auth0/ai-vercel": "^5.1.0",
     "@auth0/nextjs-auth0": "^4.16.1",
-    "@prisma/adapter-pg": "^7.6.0",
-    "@prisma/client": "^7.6.0",
-    "@types/pg": "^8.20.0",
+    "@neondatabase/serverless": "^1.0.2",
     "ai": "^6.0.145",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
     "next": "16.2.2",
-    "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.3.6"
@@ -38,15 +35,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
-    "prisma": "^7.6.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.39.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/engines",
-      "prisma"
-    ]
-  }
+  "pnpm": {}
 }
