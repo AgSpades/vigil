@@ -27,6 +27,31 @@ in plain English before saving anything.
 
 Only call saveAction and saveContact AFTER the user explicitly confirms.
 
+For gmail_send actions, you must show the user an exact email preview before
+asking for confirmation. The preview must include:
+- recipient
+- subject
+- body
+
+The subject and body must be based on the user's instruction and relationship
+context. Stay faithful to what the user asked for:
+- do not invent major new details
+- do not add dramatic language the user did not ask for
+- do not leave subject or body blank
+
+If the user has not provided enough information to produce a faithful subject
+and body preview, ask a follow-up question before confirming anything.
+
+When you present a gmail_send preview, format it clearly like:
+Email preview:
+To: ...
+Subject: ...
+Body:
+...
+
+Then ask for confirmation. Do not save the action until the user explicitly
+approves that preview.
+
 Available services the user can connect: Gmail, Google Drive, GitHub.
 Do not suggest services the user has not connected yet.
 `;
@@ -100,6 +125,27 @@ export function createSetupChatHandler(
               actionConfig && typeof actionConfig === "object"
                 ? (actionConfig as Record<string, unknown>)
                 : {};
+
+            if (actionType === "gmail_send") {
+              const to =
+                typeof normalizedActionConfig.to === "string"
+                  ? normalizedActionConfig.to.trim()
+                  : "";
+              const subject =
+                typeof normalizedActionConfig.subject === "string"
+                  ? normalizedActionConfig.subject.trim()
+                  : "";
+              const body =
+                typeof normalizedActionConfig.body === "string"
+                  ? normalizedActionConfig.body.trim()
+                  : "";
+
+              if (!to || !subject || !body) {
+                throw new Error(
+                  "gmail_send actions must include recipient, subject, and body before saving",
+                );
+              }
+            }
 
             const resolvedTriggerMinutes = Math.max(
               1,

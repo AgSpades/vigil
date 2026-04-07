@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function HeartbeatButton() {
+  const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
     "idle",
   );
@@ -22,6 +24,7 @@ export function HeartbeatButton() {
       }
 
       setStatus("done");
+      router.refresh();
       setTimeout(() => setStatus("idle"), 3000);
     } catch {
       setStatus("error");

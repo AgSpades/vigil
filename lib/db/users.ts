@@ -71,12 +71,10 @@ export async function getVigilConfig(
   return (rows[0] as VigilConfig) ?? null;
 }
 
-export async function ensureVigilConfig(
-  userId: string,
-): Promise<VigilConfig> {
+export async function ensureVigilConfig(userId: string): Promise<VigilConfig> {
   const rows = await sql`
-    INSERT INTO "VigilConfig" ("userId", "silenceDays", "graceHours")
-    VALUES (${userId}, 7, 24)
+    INSERT INTO "VigilConfig" ("userId", "silenceDays", "graceHours", "demoMode")
+    VALUES (${userId}, 7, 24, false)
     ON CONFLICT ("userId") DO NOTHING
     RETURNING *
   `;
@@ -94,11 +92,41 @@ export async function updateVigilConfig(
   data: {
     silenceDays: number;
     graceHours: number;
+    demoMode?: boolean;
   },
 ): Promise<VigilConfig> {
   const rows = await sql`
     UPDATE "VigilConfig"
-    SET "silenceDays" = ${data.silenceDays}, "graceHours" = ${data.graceHours}
+    SET
+      "silenceDays" = ${data.silenceDays},
+      "graceHours" = ${data.graceHours},
+      "demoMode" = COALESCE(${data.demoMode ?? null}, "demoMode")
+    WHERE "userId" = ${userId}
+    RETURNING *
+  `;
+  return rows[0] as VigilConfig;
+}
+
+export async function updateDemoMode(
+  userId: string,
+  demoMode: boolean,
+): Promise<VigilConfig> {
+  const rows = await sql`
+    UPDATE "VigilConfig"
+    SET "demoMode" = ${demoMode}
+    WHERE "userId" = ${userId}
+    RETURNING *
+  `;
+  return rows[0] as VigilConfig;
+}
+
+export async function resetVigilState(userId: string): Promise<VigilConfig> {
+  const rows = await sql`
+    UPDATE "VigilConfig"
+    SET
+      "cibaSentAt" = NULL,
+      "activatedAt" = NULL,
+      "cancelledAt" = NULL
     WHERE "userId" = ${userId}
     RETURNING *
   `;

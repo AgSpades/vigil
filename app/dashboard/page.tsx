@@ -4,6 +4,7 @@ import { HeartbeatButton } from "@/components/HeartbeatButton";
 import { ConnectedAccounts } from "@/components/ConnectedAccounts";
 import { LiveAuditLog } from "@/components/LiveAuditLog";
 import { StagedActionsList } from "@/components/StagedActionsList";
+import { DemoModeToggle } from "@/components/DemoModeToggle";
 import { CONNECTED_SERVICES } from "@/lib/auth0-connected-accounts";
 import { fetchConnectedAccounts } from "@/lib/auth0-my-account";
 import { getAuditLogs } from "@/lib/db/audit";
@@ -119,9 +120,16 @@ export default async function DashboardPage() {
                 {config.graceHours} hour(s)
               </p>
             )}
+            {config && (
+              <p>
+                Mode — {config.demoMode ? "Demo (threshold bypassed)" : "Default (threshold enforced)"}
+              </p>
+            )}
           </div>
 
           <HeartbeatButton />
+
+          {config ? <DemoModeToggle initialDemoMode={Boolean(config.demoMode)} /> : null}
         </section>
 
         <section className="flex flex-col gap-6 fade-up delay-100">
@@ -132,7 +140,14 @@ export default async function DashboardPage() {
             <div className="w-[40px] h-[1px] bg-vigil-accentPri"></div>
           </div>
 
-          <StagedActionsList initialActions={actions} />
+          <StagedActionsList
+            initialActions={actions}
+            lastHeartbeatAt={lastHeartbeat?.toISOString() ?? null}
+            silenceDays={config?.silenceDays ?? 7}
+            graceHours={config?.graceHours ?? 24}
+            cibaSentAt={config?.cibaSentAt?.toISOString() ?? null}
+            demoMode={Boolean(config?.demoMode)}
+          />
 
           <div className="flex">
             <Link href="/dashboard/setup" className="py-2 pr-4 -my-2 flex">

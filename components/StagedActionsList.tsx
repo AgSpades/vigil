@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/Button";
 
 type StagedActionItem = {
@@ -93,17 +92,70 @@ function formatActionSummary(action: {
 
 export function StagedActionsList({
     initialActions,
+    lastHeartbeatAt,
+    silenceDays,
+    graceHours,
+    cibaSentAt,
+    demoMode,
 }: {
     initialActions: StagedActionItem[];
+    lastHeartbeatAt: string | null;
+    silenceDays: number;
+    graceHours: number;
+    cibaSentAt: string | null;
+    demoMode: boolean;
 }) {
     const [actions, setActions] = useState<StagedActionItem[]>(initialActions);
     const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const demoCheckInFlight = useRef(false);
 
     const sortedActions = useMemo(
         () => [...actions].sort((a, b) => resolveTriggerMinutes(a) - resolveTriggerMinutes(b)),
         [actions],
     );
+
+    const lastHeartbeatDate = useMemo(
+        () => (lastHeartbeatAt ? new Date(lastHeartbeatAt) : null),
+        [lastHeartbeatAt],
+    );
+
+    const cibaSentDate = useMemo(
+        () => (cibaSentAt ? new Date(cibaSentAt) : null),
+        [cibaSentAt],
+    );
+
+    function formatEta(date: Date): string {
+        return new Intl.DateTimeFormat("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Asia/Kolkata",
+        }).format(date);
+    }
+
+    function computeExecutionInfo(action: StagedActionItem): string {
+        if (!lastHeartbeatDate || Number.isNaN(lastHeartbeatDate.getTime())) {
+            return "Execution time unknown until first check-in is recorded.";
+        }
+
+        const triggerAt = new Date(lastHeartbeatDate.getTime() + resolveTriggerMinutes(action) * 60_000);
+        const thresholdAt = new Date(lastHeartbeatDate.getTime() + silenceDays * 1_440 * 60_000);
+
+        const gateOpensAt = demoMode
+            ? triggerAt
+            : new Date(Math.max(triggerAt.getTime(), thresholdAt.getTime()));
+
+        if (demoMode) {
+            return `Demo mode: executes locally shortly after ${formatEta(gateOpensAt)} while this dashboard is open.`;
+        }
+
+        if (cibaSentDate && !Number.isNaN(cibaSentDate.getTime())) {
+            const graceDeadline = new Date(cibaSentDate.getTime() + graceHours * 3_600_000);
+            return `Awaiting confirmation now. Executes immediately on approval, or by ${formatEta(graceDeadline)} if unanswered.`;
+        }
+
+        return `Earliest confirmation window: ${formatEta(gateOpensAt)}.`;
+    }
 
     useEffect(() => {
         setActions(initialActions);
@@ -146,6 +198,73 @@ export function StagedActionsList({
             clearInterval(interval);
         };
     }, []);
+
+    useEffect(() => {
+        if (!demoMode || !lastHeartbeatDate || Number.isNaN(lastHeartbeatDate.getTime())) {
+            return;
+        }
+
+        let cancelled = false;
+        const heartbeatTime = lastHeartbeatDate.getTime();
+
+        function hasDuePendingAction() {
+            const now = Date.now();
+
+            return sortedActions.some((action) => {
+                if (action.status !== "pending") {
+                    return false;
+                }
+
+                const triggerAt =
+                    heartbeatTime + resolveTriggerMinutes(action) * 60_000;
+
+                return triggerAt <= now;
+            });
+        }
+
+        async function maybeRunDemoCheck() {
+            if (demoCheckInFlight.current || !hasDuePendingAction()) {
+                return;
+            }
+
+            demoCheckInFlight.current = true;
+
+            try {
+                const response = await fetch("/api/demo/check", {
+                    method: "POST",
+                });
+
+                if (!response.ok) {
+                    const payload = (await response.json().catch(() => ({}))) as {
+                        error?: string;
+                    };
+
+                    if (!cancelled) {
+                        setError(payload.error ?? "Failed to run local demo execution");
+                    }
+                } else if (!cancelled) {
+                    setError(null);
+                }
+            } catch {
+                if (!cancelled) {
+                    setError("Failed to run local demo execution");
+                }
+            } finally {
+                demoCheckInFlight.current = false;
+            }
+        }
+
+        void maybeRunDemoCheck();
+
+        const interval = setInterval(() => {
+            void maybeRunDemoCheck();
+        }, 3000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [demoMode, lastHeartbeatDate, sortedActions]);
 
     async function cancelAction(actionId: number) {
         setPendingCancelId(actionId);
@@ -204,6 +323,11 @@ export function StagedActionsList({
                         </span>
                         <span className="text-[14px] text-vigil-textPri font-light flex-grow break-words min-w-0">
                             {formatActionSummary(action)}
+                            {action.status === "pending" ? (
+                                <span className="mt-1 block text-[12px] text-vigil-textSec">
+                                    {computeExecutionInfo(action)}
+                                </span>
+                            ) : null}
                         </span>
 
                         <div className="flex items-center gap-2 shrink-0">

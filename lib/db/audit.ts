@@ -1,6 +1,26 @@
 import { sql } from "./client";
 import type { AuditLog } from "./types";
 
+function toAuditLog(
+  row: Record<string, unknown> & { occurredAtMs?: string | number },
+): AuditLog {
+  const value = row.occurredAtMs;
+  const epochMs =
+    typeof value === "string" ? Number.parseInt(value, 10) : value;
+  const occurredAt = Number.isFinite(epochMs) ? new Date(epochMs as number) : new Date(0);
+
+  return {
+    id: Number(row.id),
+    userId: String(row.userId),
+    eventType: String(row.eventType),
+    detail:
+      row.detail && typeof row.detail === "object"
+        ? (row.detail as Record<string, unknown>)
+        : null,
+    occurredAt,
+  };
+}
+
 export async function logAudit(
   userId: string,
   eventType: string,
@@ -19,12 +39,18 @@ export async function getAuditLogs(
   limit = 50,
 ): Promise<AuditLog[]> {
   const rows = await sql`
-    SELECT * FROM "AuditLog"
+    SELECT
+      "id",
+      "userId",
+      "eventType",
+      "detail",
+      FLOOR(EXTRACT(EPOCH FROM ("occurredAt" AT TIME ZONE 'UTC')) * 1000)::bigint AS "occurredAtMs"
+    FROM "AuditLog"
     WHERE "userId" = ${userId}
     ORDER BY "occurredAt" DESC
     LIMIT ${limit}
   `;
-  return rows as AuditLog[];
+  return rows.map((row) => toAuditLog(row as Record<string, unknown>));
 }
 
 export async function getLatestCibaAuthRequestId(
