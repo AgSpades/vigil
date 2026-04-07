@@ -4,18 +4,12 @@ import { HeartbeatButton } from "@/components/HeartbeatButton";
 import { ConnectedAccounts } from "@/components/ConnectedAccounts";
 import { LiveAuditLog } from "@/components/LiveAuditLog";
 import { StagedActionsList } from "@/components/StagedActionsList";
-import {
-  CONNECTED_SERVICES,
-} from "@/lib/auth0-connected-accounts";
+import { CONNECTED_SERVICES } from "@/lib/auth0-connected-accounts";
 import { fetchConnectedAccounts } from "@/lib/auth0-my-account";
 import { getAuditLogs } from "@/lib/db/audit";
 import { getLastHeartbeat } from "@/lib/db/heartbeats";
 import { getStagedActions } from "@/lib/db/staged-actions";
-import {
-  ensureVigilConfig,
-  getVigilConfig,
-  upsertUser,
-} from "@/lib/db/users";
+import { ensureVigilConfig, getVigilConfig, upsertUser } from "@/lib/db/users";
 
 function formatTimestamp(date: Date | null): string {
   if (!date) {
@@ -42,7 +36,7 @@ export default async function DashboardPage() {
     await Promise.all([
       getVigilConfig(session.user.sub),
       getLastHeartbeat(session.user.sub),
-      getStagedActions(session.user.sub),
+      getStagedActions(session.user.sub, session.user.email),
       getAuditLogs(session.user.sub, 25),
       fetchConnectedAccounts({
         probeConnections: Array.from(

@@ -7,6 +7,24 @@ const ACTION_TYPES_BY_SERVICE = {
   github: ["github_transfer"],
 } as const;
 
+async function resolveVisibleUserIds(
+  userId: string,
+  email?: string,
+): Promise<string[]> {
+  if (!email) {
+    return [userId];
+  }
+
+  const rows = await sql`
+    SELECT "id" FROM "User"
+    WHERE "email" = ${email}
+  `;
+
+  return Array.from(
+    new Set([userId, ...rows.map((row) => String((row as { id: string }).id))]),
+  );
+}
+
 export async function saveStagedAction(data: {
   userId: string;
   triggerDays: number;
@@ -67,11 +85,14 @@ export async function cancelAllActions(userId: string): Promise<number> {
 
 export async function getStagedActions(
   userId: string,
+  email?: string,
 ): Promise<StagedAction[]> {
+  const visibleUserIds = await resolveVisibleUserIds(userId, email);
+
   const rows = await sql`
     SELECT * FROM "StagedAction"
-    WHERE "userId" = ${userId}
-    ORDER BY "triggerDays" ASC
+    WHERE "userId" = ANY(${visibleUserIds})
+    ORDER BY "triggerDays" ASC, "id" ASC
   `;
   return rows as StagedAction[];
 }
@@ -79,11 +100,16 @@ export async function getStagedActions(
 export async function cancelStagedActionById(
   userId: string,
   actionId: number,
+  email?: string,
 ): Promise<boolean> {
+  const visibleUserIds = await resolveVisibleUserIds(userId, email);
+
   const rows = await sql`
     UPDATE "StagedAction"
     SET "status" = 'cancelled'
-    WHERE "id" = ${actionId} AND "userId" = ${userId} AND "status" = 'pending'
+    WHERE "id" = ${actionId}
+      AND "userId" = ANY(${visibleUserIds})
+      AND "status" = 'pending'
     RETURNING "id"
   `;
   return rows.length > 0;

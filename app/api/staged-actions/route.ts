@@ -7,6 +7,6 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const actions = await getStagedActions(session.user.sub);
+  const actions = await getStagedActions(session.user.sub, session.user.email);
   return Response.json({ actions });
 }

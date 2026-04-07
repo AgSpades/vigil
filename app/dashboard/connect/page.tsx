@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Button } from "@/components/Button";
 import { ConnectedAccounts } from "@/components/ConnectedAccounts";
 import { auth0 } from "@/lib/auth0";
 import { CONNECTED_SERVICES } from "@/lib/auth0-connected-accounts";
@@ -18,6 +20,14 @@ export default async function DashboardConnectPage() {
         <main className="min-h-[calc(100vh-72px)] bg-vigil-bgPri p-6 md:p-12 text-vigil-textPri flex justify-center fade-up relative pb-[120px]">
             <div className="w-full max-w-[900px] flex flex-col gap-8">
                 <section className="flex flex-col gap-3">
+                    <div>
+                        <Link href="/dashboard" className="inline-flex">
+                            <Button variant="secondary" className="!h-[34px] !px-4 text-[11px]">
+                                Back to Dashboard
+                            </Button>
+                        </Link>
+                    </div>
+
                     <h1 className="font-serif text-[40px] md:text-[56px] font-light leading-[1.1]">
                         Manage Connections
                     </h1>

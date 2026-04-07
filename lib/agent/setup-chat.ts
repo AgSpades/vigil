@@ -74,12 +74,19 @@ export function createSetupChatHandler(
                 ? (actionConfig as Record<string, unknown>)
                 : {};
 
-            await saveStagedAction({
+            const savedAction = await saveStagedAction({
               userId,
               triggerDays,
               actionType,
               actionConfig: normalizedActionConfig,
             });
+
+            await logAudit(userId, "setup_action_saved", {
+              actionId: savedAction.id,
+              triggerDays,
+              actionType,
+            });
+
             return { saved: true };
           },
         }),
@@ -109,6 +116,13 @@ export function createSetupChatHandler(
               relationship,
               context,
             });
+
+            await logAudit(userId, "setup_contact_saved", {
+              contactName,
+              contactEmail,
+              relationship,
+            });
+
             return { saved: true };
           },
         }),
