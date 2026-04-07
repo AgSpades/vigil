@@ -24,7 +24,9 @@ export interface StagedAction {
   userId: string;
   triggerDays: number;
   actionType: string;
-  actionConfig: Record<string, unknown>;
+  actionConfig: Record<string, unknown> & {
+    triggerMinutes?: number;
+  };
   executedAt: Date | null;
   status: string;
 }

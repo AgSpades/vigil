@@ -27,30 +27,51 @@ async function resolveVisibleUserIds(
 
 export async function saveStagedAction(data: {
   userId: string;
-  triggerDays: number;
+  triggerMinutes: number;
   actionType: string;
   actionConfig: Record<string, unknown>;
 }): Promise<StagedAction> {
+  const triggerMinutes = Math.max(1, Math.round(data.triggerMinutes));
+  const triggerDays = Math.floor(triggerMinutes / 1_440);
+
   const rows = await sql`
     INSERT INTO "StagedAction" ("userId", "triggerDays", "actionType", "actionConfig", "status")
-    VALUES (${data.userId}, ${data.triggerDays}, ${data.actionType}, ${JSON.stringify(data.actionConfig)}::jsonb, 'pending')
+    VALUES (${data.userId}, ${triggerDays}, ${data.actionType}, ${JSON.stringify(data.actionConfig)}::jsonb, 'pending')
     RETURNING *
   `;
   return rows[0] as StagedAction;
 }
 
+function getTriggerMinutes(action: StagedAction): number {
+  const fromConfig =
+    action.actionConfig && typeof action.actionConfig === "object"
+      ? (action.actionConfig as Record<string, unknown>).triggerMinutes
+      : undefined;
+
+  if (typeof fromConfig === "number" && Number.isFinite(fromConfig)) {
+    return Math.max(1, Math.round(fromConfig));
+  }
+
+  return Math.max(1, Math.round(action.triggerDays * 1_440));
+}
+
 export async function getPendingStagedActions(
   userId: string,
-  silenceDays: number,
+  elapsedMinutes: number,
 ): Promise<StagedAction[]> {
   const rows = await sql`
     SELECT * FROM "StagedAction"
     WHERE "userId" = ${userId}
       AND "status" = 'pending'
-      AND "triggerDays" <= ${silenceDays}
-    ORDER BY "triggerDays" ASC
+    ORDER BY "triggerDays" ASC, "id" ASC
   `;
-  return rows as StagedAction[];
+
+  const pending = rows as StagedAction[];
+  const threshold = Math.max(0, Math.floor(elapsedMinutes));
+
+  return pending
+    .filter((action) => getTriggerMinutes(action) <= threshold)
+    .sort((a, b) => getTriggerMinutes(a) - getTriggerMinutes(b));
 }
 
 export async function markActionExecuted(id: number): Promise<StagedAction> {
@@ -94,7 +115,9 @@ export async function getStagedActions(
     WHERE "userId" = ANY(${visibleUserIds})
     ORDER BY "triggerDays" ASC, "id" ASC
   `;
-  return rows as StagedAction[];
+  return (rows as StagedAction[]).sort(
+    (a, b) => getTriggerMinutes(a) - getTriggerMinutes(b),
+  );
 }
 
 export async function cancelStagedActionById(

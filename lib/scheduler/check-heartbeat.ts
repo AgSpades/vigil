@@ -69,11 +69,12 @@ export async function checkHeartbeat(userId: string) {
   const lastBeat = await getLastHeartbeat(userId);
   // lastBeat will be null if the user has never checked in — treat that as silenceDays = Infinity, which will trigger the CIBA push immediately. Otherwise, calculate silenceDays as normal.
   if (!lastBeat) return;
-  
-  const silenceDays = (Date.now() - lastBeat.getTime()) / 86_400_000;
+
+  const elapsedMinutes = (Date.now() - lastBeat.getTime()) / 60_000;
+  const silenceDays = elapsedMinutes / 1_440;
 
   // Still within threshold — nothing to do
-  if (silenceDays < config.silenceDays) return;
+  if (elapsedMinutes < config.silenceDays * 1_440) return;
 
   if (!config.cibaSentAt) {
     // First time crossing threshold — send CIBA push and record timestamp
@@ -89,6 +90,6 @@ export async function checkHeartbeat(userId: string) {
 
   if (graceElapsed) {
     // User did not respond — hand off to the LLM activation agent
-    await triggerActivation(userId, silenceDays);
+    await triggerActivation(userId, elapsedMinutes);
   }
 }

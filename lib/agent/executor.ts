@@ -23,8 +23,11 @@ async function getRefreshToken(): Promise<string | undefined> {
   return session?.tokenSet?.refreshToken ?? undefined;
 }
 
-export async function triggerActivation(userId: string, silenceDays: number) {
-  const actions = await getPendingStagedActions(userId, silenceDays);
+export async function triggerActivation(
+  userId: string,
+  elapsedMinutes: number,
+) {
+  const actions = await getPendingStagedActions(userId, elapsedMinutes);
   const contacts = await getContactContext(userId);
 
   if (actions.length === 0) return;
@@ -220,14 +223,14 @@ export async function triggerActivation(userId: string, silenceDays: number) {
   await generateText({
     model,
     system: `
-You are Vigil's activation agent. The user has been silent for ${silenceDays} days.
+You are Vigil's activation agent. The user has been silent for ${Math.round(elapsedMinutes)} minutes (${(elapsedMinutes / 60).toFixed(1)} hours).
 You must now execute their pre-configured wishes in order.
 
 For Gmail actions: draft a warm, personalized farewell message using the
 relationship context provided. Match the tone the user described. Do not
 use generic templates.
 
-Execute actions in order of triggerDays (ascending). If one fails, log it
+Execute actions in order of triggerMinutes (ascending). If one fails, log it
 and continue with the rest. Never stop the entire sequence for one failure.
     `,
     prompt: `

@@ -8,9 +8,39 @@ type StagedActionItem = {
     id: number;
     triggerDays: number;
     actionType: string;
-    actionConfig: unknown;
+    actionConfig: {
+        triggerMinutes?: number;
+        [key: string]: unknown;
+    } | unknown;
     status: string;
 };
+
+function resolveTriggerMinutes(action: StagedActionItem): number {
+    if (action.actionConfig && typeof action.actionConfig === "object") {
+        const value = (action.actionConfig as Record<string, unknown>).triggerMinutes;
+        if (typeof value === "number" && Number.isFinite(value)) {
+            return Math.max(1, Math.round(value));
+        }
+    }
+
+    return Math.max(1, Math.round(action.triggerDays * 1440));
+}
+
+function formatTriggerLabel(minutes: number): string {
+    if (minutes < 60) {
+        return `AFTER ${minutes} MIN${minutes === 1 ? "" : "S"}`;
+    }
+
+    if (minutes < 1440) {
+        const hours = minutes / 60;
+        const rounded = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+        return `AFTER ${rounded} HOUR${hours === 1 ? "" : "S"}`;
+    }
+
+    const days = minutes / 1440;
+    const rounded = Number.isInteger(days) ? String(days) : days.toFixed(1);
+    return `AFTER ${rounded} DAY${days === 1 ? "" : "S"}`;
+}
 
 function formatActionType(actionType: string): string {
     const labels: Record<string, string> = {
@@ -71,7 +101,7 @@ export function StagedActionsList({
     const [error, setError] = useState<string | null>(null);
 
     const sortedActions = useMemo(
-        () => [...actions].sort((a, b) => a.triggerDays - b.triggerDays),
+        () => [...actions].sort((a, b) => resolveTriggerMinutes(a) - resolveTriggerMinutes(b)),
         [actions],
     );
 
@@ -170,8 +200,7 @@ export function StagedActionsList({
                         className="bg-vigil-bgSec border border-vigil-borderSubtle rounded-[4px] px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                     >
                         <span className="text-[13px] uppercase tracking-[0.1em] text-vigil-textSec w-32 shrink-0">
-                            AFTER {action.triggerDays} DAY
-                            {action.triggerDays === 1 ? "" : "S"}
+                            {formatTriggerLabel(resolveTriggerMinutes(action))}
                         </span>
                         <span className="text-[14px] text-vigil-textPri font-light flex-grow break-words min-w-0">
                             {formatActionSummary(action)}

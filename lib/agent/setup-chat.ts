@@ -11,9 +11,15 @@ You are Vigil's setup assistant. Your job is to help the user configure what
 happens when Vigil activates — when their check-ins stop.
 
 You must extract the following from the conversation:
-- Who should be contacted, how, and after how many days of silence
+- Who should be contacted, how, and after how much silence time
 - Any relationship context the user shares about each contact
 - Any file archiving or repository transfer wishes
+
+For every action, normalize timing to triggerMinutes (integer minutes).
+Examples:
+- 10 minutes -> triggerMinutes: 10
+- 2 hours -> triggerMinutes: 120
+- 7 days -> triggerMinutes: 10080
 
 Ask clarifying questions when the user is ambiguous. Be warm but concise.
 Once you have enough information, confirm the full plan back to the user
@@ -42,8 +48,23 @@ export function createSetupChatHandler(
           description:
             "Save a confirmed staged action to the database. Only call after user confirms.",
           inputSchema: z.object({
+            triggerMinutes: z
+              .number()
+              .int()
+              .positive()
+              .optional()
+              .describe("Minutes of silence before this action fires"),
+            triggerHours: z
+              .number()
+              .positive()
+              .optional()
+              .describe(
+                "Hours of silence before this action fires (legacy alternative)",
+              ),
             triggerDays: z
               .number()
+              .positive()
+              .optional()
               .describe("Days of silence before this action fires"),
             actionType: z.enum([
               "gmail_send",
@@ -68,22 +89,39 @@ export function createSetupChatHandler(
               .passthrough()
               .describe("Structured config for this action type"),
           }),
-          execute: async ({ triggerDays, actionType, actionConfig }) => {
+          execute: async ({
+            triggerMinutes,
+            triggerHours,
+            triggerDays,
+            actionType,
+            actionConfig,
+          }) => {
             const normalizedActionConfig =
               actionConfig && typeof actionConfig === "object"
                 ? (actionConfig as Record<string, unknown>)
                 : {};
 
+            const resolvedTriggerMinutes = Math.max(
+              1,
+              Math.round(
+                triggerMinutes ??
+                  ((triggerHours ?? 0) * 60 || (triggerDays ?? 0) * 1_440),
+              ),
+            );
+
             const savedAction = await saveStagedAction({
               userId,
-              triggerDays,
+              triggerMinutes: resolvedTriggerMinutes,
               actionType,
-              actionConfig: normalizedActionConfig,
+              actionConfig: {
+                ...normalizedActionConfig,
+                triggerMinutes: resolvedTriggerMinutes,
+              },
             });
 
             await logAudit(userId, "setup_action_saved", {
               actionId: savedAction.id,
-              triggerDays,
+              triggerMinutes: resolvedTriggerMinutes,
               actionType,
             });
 

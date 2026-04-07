@@ -13,13 +13,20 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { userId, silenceDays } = await req.json();
-  if (!userId || typeof silenceDays !== "number") {
+  const { userId, elapsedMinutes, silenceDays } = await req.json();
+  const resolvedElapsedMinutes =
+    typeof elapsedMinutes === "number"
+      ? elapsedMinutes
+      : typeof silenceDays === "number"
+        ? silenceDays * 1_440
+        : null;
+
+  if (!userId || typeof resolvedElapsedMinutes !== "number") {
     return Response.json({ error: "Invalid payload" }, { status: 400 });
   }
 
   // Fire and forget — activation can take time
-  triggerActivation(userId, silenceDays).catch(console.error);
+  triggerActivation(userId, resolvedElapsedMinutes).catch(console.error);
 
   return Response.json({ ok: true });
 }
