@@ -9,6 +9,10 @@ datasource db {
 model User {
   id            String           @id
   email         String
+  pinHash       String?
+  lastSeenAt    DateTime?
+  failedAttempts Int             @default(0)
+  lockUntil     DateTime?
   createdAt     DateTime         @default(now())
   auditLogs     AuditLog[]
   contacts      ContactContext[]

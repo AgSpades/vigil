@@ -9,7 +9,12 @@ import { fetchConnectedAccounts } from "@/lib/auth0-my-account";
 import { getAuditLogs } from "@/lib/db/audit";
 import { getLastHeartbeat } from "@/lib/db/heartbeats";
 import { getStagedActions } from "@/lib/db/staged-actions";
-import { ensureVigilConfig, getVigilConfig, upsertUser } from "@/lib/db/users";
+import {
+  ensureVigilConfig,
+  getUserCheckinSecurity,
+  getVigilConfig,
+  upsertUser,
+} from "@/lib/db/users";
 
 function formatTimestamp(date: Date | null): string {
   if (!date) {
@@ -32,9 +37,10 @@ export default async function DashboardPage() {
   await upsertUser(session.user.sub, session.user.email ?? "");
   await ensureVigilConfig(session.user.sub);
 
-  const [config, lastHeartbeat, actions, auditLogs, accounts] =
+  const [config, checkinSecurity, lastHeartbeat, actions, auditLogs, accounts] =
     await Promise.all([
       getVigilConfig(session.user.sub),
+      getUserCheckinSecurity(session.user.sub),
       getLastHeartbeat(session.user.sub),
       getStagedActions(session.user.sub, session.user.email),
       getAuditLogs(session.user.sub, 25),
@@ -45,7 +51,7 @@ export default async function DashboardPage() {
       }),
     ]);
 
-  const lastSeen = lastHeartbeat;
+  const lastSeen = checkinSecurity?.lastSeenAt ?? lastHeartbeat;
 
   const statusKey = config?.cancelledAt
     ? "down"

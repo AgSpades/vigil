@@ -7,6 +7,13 @@ import { fetchConnectedAccounts } from "../auth0-my-account";
 import { sql } from "./client";
 import type { User, VigilConfig } from "./types";
 
+export interface UserCheckinSecurity {
+  pinHash: string | null;
+  failedAttempts: number;
+  lockUntil: Date | null;
+  lastSeenAt: Date | null;
+}
+
 export async function upsertUser(id: string, email: string): Promise<User> {
   const rows = await sql`
     INSERT INTO "User" ("id", "email", "createdAt")
@@ -118,4 +125,53 @@ export async function hasCompletedOnboarding(userId: string): Promise<boolean> {
     LIMIT 1
   `;
   return rows.length > 0;
+}
+
+export async function getUserCheckinSecurity(
+  userId: string,
+): Promise<UserCheckinSecurity | null> {
+  const rows = await sql`
+    SELECT "pinHash", "failedAttempts", "lockUntil", "lastSeenAt"
+    FROM "User"
+    WHERE "id" = ${userId}
+    LIMIT 1
+  `;
+  return (rows[0] as UserCheckinSecurity | undefined) ?? null;
+}
+
+export async function setUserPin(userId: string, pinHash: string): Promise<void> {
+  await sql`
+    UPDATE "User"
+    SET "pinHash" = ${pinHash}, "failedAttempts" = 0, "lockUntil" = NULL
+    WHERE "id" = ${userId}
+  `;
+}
+
+export async function markCheckinSuccess(userId: string): Promise<void> {
+  await sql`
+    UPDATE "User"
+    SET "lastSeenAt" = NOW(), "failedAttempts" = 0, "lockUntil" = NULL
+    WHERE "id" = ${userId}
+  `;
+}
+
+export async function markCheckinFailure(
+  userId: string,
+  maxAttempts = 5,
+  lockMinutes = 15,
+): Promise<{ failedAttempts: number; lockUntil: Date | null }> {
+  const rows = await sql`
+    UPDATE "User"
+    SET
+      "failedAttempts" = "failedAttempts" + 1,
+      "lockUntil" = CASE
+        WHEN ("failedAttempts" + 1) >= ${maxAttempts}
+          THEN NOW() + (${lockMinutes} * INTERVAL '1 minute')
+        ELSE "lockUntil"
+      END
+    WHERE "id" = ${userId}
+    RETURNING "failedAttempts", "lockUntil"
+  `;
+
+  return rows[0] as { failedAttempts: number; lockUntil: Date | null };
 }
