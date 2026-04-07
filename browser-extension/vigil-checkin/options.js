@@ -1,6 +1,6 @@
 const DEFAULTS = {
   checkInUrl: "http://localhost:3000/dashboard",
-  reminderIntervalMinutes: 360,
+  reminderIntervalMinutes: 100,
 };
 
 const checkInUrlInput = document.getElementById("checkInUrl");
@@ -17,7 +17,7 @@ async function loadSettings() {
 async function saveSettings() {
   const checkInUrl = checkInUrlInput.value.trim();
   const reminderIntervalMinutes = Math.max(
-    60,
+    100,
     Number(reminderInput.value || DEFAULTS.reminderIntervalMinutes),
   );
 
