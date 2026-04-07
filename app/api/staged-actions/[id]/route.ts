@@ -18,7 +18,11 @@ export async function DELETE(
     return Response.json({ error: "Invalid action id" }, { status: 400 });
   }
 
-  const cancelled = await cancelStagedActionById(session.user.sub, actionId);
+  const cancelled = await cancelStagedActionById(
+    session.user.sub,
+    actionId,
+    session.user.email,
+  );
   if (!cancelled) {
     return Response.json(
       { error: "Action not found or already finalized" },

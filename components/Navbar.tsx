@@ -21,27 +21,27 @@ export function Navbar({
             <span className="text-[12px] uppercase tracking-[0.12em] text-vigil-textSec hidden sm:inline-block">
               {email}
             </span>
-            <Link
+            <a
               href="/auth/logout"
               className="text-[12px] uppercase tracking-[0.12em] text-vigil-textSec hover:text-white transition-colors duration-200"
             >
               Sign out
-            </Link>
+            </a>
           </>
         ) : (
           <>
-            <Link
+            <a
               href="/auth/login"
               className="text-[12px] uppercase tracking-[0.12em] text-vigil-textSec hover:text-white transition-colors duration-200"
             >
               Sign in
-            </Link>
-            <Link
+            </a>
+            <a
               href="/auth/login"
               className="h-[52px] px-6 sm:px-8 bg-vigil-accentPri text-vigil-textPri text-[13px] font-medium uppercase tracking-[0.12em] rounded-sm flex items-center hover:bg-vigil-accentSec transition-colors duration-200"
             >
               Get started
-            </Link>
+            </a>
           </>
         )}
       </div>
