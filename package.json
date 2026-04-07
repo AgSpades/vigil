@@ -39,5 +39,11 @@
     "typescript": "^5",
     "wrangler": "^4.39.0"
   },
-  "pnpm": {}
+  "pnpm": {
+    "overrides": {
+      "zod": "^4.3.6",
+      "@openfga/sdk": "npm:empty-npm-package@1.0.0",
+      "axios": "npm:empty-npm-package@1.0.0"
+    }
+  }
 }
